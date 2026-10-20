@@ -19,6 +19,7 @@ import { degradedCapabilities, detectRuntime, readRuntimeInfo } from './platform
 import { physicalToLogical, resolveScale } from './renderer/dpi';
 import { FpsMeter } from './renderer/fps';
 import type { FpsReport } from './renderer/fps';
+import { FramePacer } from './renderer/loop';
 import { createTauriLogger, installErrorReporting, openLogFolder } from './platform/logger';
 import type { Logger } from './platform/logger';
 import { formatMegabytes, readMemoryUsage, setTrayTooltip } from './platform/diagnostics';
@@ -27,8 +28,13 @@ import { formatMegabytes, readMemoryUsage, setTrayTooltip } from './platform/dia
 const HEALTH_WINDOW_MS = 30_000;
 /** 正常状态下每十分钟留一条心跳日志，便于确认程序仍在运行。 */
 const HEARTBEAT_MS = 10 * 60_000;
-/** 低于该帧率视为异常，落一条警告。 */
-const LOW_FPS = 45;
+/**
+ * 每秒最多绘制多少次。皮带动画只有个位数帧率，待机小动作也只需要每秒三十帧，
+ * 而浏览器的动画回调可能跑到每秒两百次，因此把绘制频率压到这个值。
+ */
+const RENDER_FPS = 30;
+/** 低于目标帧率的八成视为异常，落一条警告。 */
+const LOW_FPS = Math.round(RENDER_FPS * 0.8);
 
 async function bootstrap(): Promise<void> {
   const logger = await createTauriLogger();
@@ -103,10 +109,12 @@ async function startPet(logger: Logger): Promise<void> {
     console.warn(`[runtime] ${warning.capability}受限：${warning.reason}`);
   }
   logger.info(
-    `启动完成：环境 ${runtimeKind}，缩放 ${resolveScale(window.devicePixelRatio)}，画布 ${canvas.width}x${canvas.height}`,
+    `启动完成：环境 ${runtimeKind}，缩放 ${resolveScale(window.devicePixelRatio)}，画布 ${canvas.width}x${canvas.height}，绘制上限 ${RENDER_FPS} 帧每秒`,
   );
 
   let previous = performance.now();
+  let lastRenderedAt = previous;
+  const pacer = new FramePacer(RENDER_FPS);
   const fpsMeter = new FpsMeter(HEALTH_WINDOW_MS);
   let lastHeartbeat = previous;
   let firstReport = true;
@@ -130,13 +138,21 @@ async function startPet(logger: Logger): Promise<void> {
     }
   };
 
+  // 用动画回调做时钟：本机 WebView2 的回调频率约两百次每秒，远高于需要的三十帧，
+  // 因此未到绘制点的回调只做一次计时判断就返回，绘制与动画推进都交给节流器决定。
+  // 不用定时器是因为 Windows 的定时器会被合并到约十五毫秒的精度，实测只能跑到
+  // 每秒二十帧左右，反而让动画变顿。
   const frameLoop = (now: number): void => {
     const delta = now - previous;
     previous = now;
-    controller.tick(delta);
-    const report = fpsMeter.sample(delta);
-    if (report !== null) {
-      void publishHealth(report, now);
+    const step = pacer.due(delta);
+    if (step !== null) {
+      controller.tick(step);
+      const report = fpsMeter.sample(now - lastRenderedAt);
+      lastRenderedAt = now;
+      if (report !== null) {
+        void publishHealth(report, now);
+      }
     }
     requestAnimationFrame(frameLoop);
   };

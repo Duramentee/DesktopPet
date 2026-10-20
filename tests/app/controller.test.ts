@@ -343,6 +343,46 @@ describe('应用层控制器', () => {
     expect(h.renderer.lastFrame()?.frameFile).toBe('images/idle_1.png');
   });
 
+  it('帧与位姿都没变时不重复绘制', async () => {
+    const h = await harness();
+    await h.controller.toggleIdleMotion();
+    const before = h.renderer.frames.length;
+    for (let index = 0; index < 5; index += 1) {
+      h.controller.tick(10);
+    }
+    expect(h.renderer.frames).toHaveLength(before);
+  });
+
+  it('帧推进后重画一次，跳过的重复绘制不影响换帧', async () => {
+    const h = await harness();
+    await h.controller.toggleIdleMotion();
+    h.controller.tick(10);
+    const before = h.renderer.frames.length;
+    // 夹具皮肤每帧一百毫秒，累计到一百毫秒正好换帧
+    h.controller.tick(90);
+    expect(h.renderer.frames).toHaveLength(before + 1);
+    expect(h.renderer.lastFrame()?.frameFile).toBe('images/idle_1.png');
+  });
+
+  it('切换皮肤后即使帧文件相同也重画一次', async () => {
+    const h = await harness({
+      outcomes: {
+        default: okOutcome(),
+        midnight: okOutcome('midnight'),
+      },
+    });
+    const before = h.renderer.frames.length;
+    expect(await h.controller.switchSkin('midnight')).toBe(true);
+    expect(h.renderer.frames).toHaveLength(before + 1);
+  });
+
+  it('缩放变化后强制重画，避免画布后备存储重建后留空', async () => {
+    const h = await harness();
+    const before = h.renderer.frames.length;
+    await h.controller.handleScaleChanged(2, { x: 468, y: 536 });
+    expect(h.renderer.frames).toHaveLength(before + 1);
+  });
+
   it('待机时推进呼吸，帧上带有非中立的纵向缩放', async () => {
     const h = await harness();
     h.controller.tick(500);

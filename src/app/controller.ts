@@ -86,6 +86,8 @@ export class PetController {
   private machine: PetMachine | null = null;
   private workAreas: Rect[] = [];
   private pose: IdleMotionPose = { ...NEUTRAL_POSE };
+  /** 上一次真正画出去的内容指纹，用于跳过完全相同的重复绘制。 */
+  private lastDrawnSignature: string | null = null;
 
   constructor(deps: ControllerDeps) {
     this.deps = deps;
@@ -219,6 +221,8 @@ export class PetController {
   async handleScaleChanged(scale: number, topLeft: Point): Promise<void> {
     const skin = this.requireSkin();
     this.deps.renderer.setScale?.(scale);
+    // 缩放变化会重建画布后备存储并清空画面，因此必须强制重画一次
+    this.lastDrawnSignature = null;
     this.requireMachine().place(windowTopLeftToAnchor(topLeft, skin.anchor));
     await this.deps.window.setSize(skin.canvas.width, skin.canvas.height);
     this.draw();
@@ -368,6 +372,8 @@ export class PetController {
     });
     await this.deps.renderer.prepareSkin(skin, baseUrl);
     await this.deps.window.setSize(skin.canvas.width, skin.canvas.height);
+    // 新皮肤的帧图片是全新对象，即使文件路径与旧皮肤相同也要重画
+    this.lastDrawnSignature = null;
   }
 
   /** 让系统的自启项与配置保持一致，两者相同时不重复写系统。 */
@@ -379,6 +385,10 @@ export class PetController {
     }
   }
 
+  /**
+   * 把当前帧与位姿交给渲染层。帧文件、画布尺寸与位姿都相同的重复调用会被跳过：
+   * 待机小动作关闭时动画每秒只有几帧，没必要每次回调都重画一遍。
+   */
   private draw(): void {
     const machine = this.machine;
     const skin = this.skin;
@@ -386,6 +396,11 @@ export class PetController {
       return;
     }
     const snapshot = machine.snapshot;
+    const signature = `${snapshot.frame.file}|${skin.canvas.width}x${skin.canvas.height}|${this.pose.offsetX},${this.pose.offsetY},${this.pose.scaleY}`;
+    if (signature === this.lastDrawnSignature) {
+      return;
+    }
+    this.lastDrawnSignature = signature;
     this.deps.renderer.draw({
       animationName: snapshot.animationName,
       frameFile: snapshot.frame.file,
