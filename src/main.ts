@@ -108,8 +108,10 @@ async function startPet(logger: Logger): Promise<void> {
   for (const warning of degradedCapabilities(runtimeKind)) {
     console.warn(`[runtime] ${warning.capability}受限：${warning.reason}`);
   }
+  const { getVersion } = await import('@tauri-apps/api/app');
+  const version = await getVersion().catch(() => '未知');
   logger.info(
-    `启动完成：环境 ${runtimeKind}，缩放 ${resolveScale(window.devicePixelRatio)}，画布 ${canvas.width}x${canvas.height}，绘制上限 ${RENDER_FPS} 帧每秒`,
+    `启动完成：版本 ${version}，环境 ${runtimeKind}，缩放 ${resolveScale(window.devicePixelRatio)}，画布 ${canvas.width}x${canvas.height}，绘制上限 ${RENDER_FPS} 帧每秒`,
   );
 
   let previous = performance.now();
