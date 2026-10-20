@@ -11,6 +11,8 @@ export interface AppConfig {
   alwaysOnTop: boolean;
   /** 是否随系统登录自动启动，实际状态由平台层的自启项决定。 */
   autoStart: boolean;
+  /** 待机时是否播放呼吸与张望这类小幅动作。 */
+  idleMotion: boolean;
   anchorPosition: Point;
 }
 
@@ -24,6 +26,7 @@ export const DEFAULT_CONFIG: AppConfig = Object.freeze({
   activeSkinId: 'default',
   alwaysOnTop: true,
   autoStart: false,
+  idleMotion: true,
   anchorPosition: Object.freeze({ x: 960, y: 1040 }) as Point,
 }) as AppConfig;
 
@@ -33,6 +36,7 @@ export function createDefaultConfig(): AppConfig {
     activeSkinId: DEFAULT_CONFIG.activeSkinId,
     alwaysOnTop: DEFAULT_CONFIG.alwaysOnTop,
     autoStart: DEFAULT_CONFIG.autoStart,
+    idleMotion: DEFAULT_CONFIG.idleMotion,
     anchorPosition: { ...DEFAULT_CONFIG.anchorPosition },
   };
 }
@@ -69,6 +73,11 @@ export function parseConfig(text: string | null): AppConfig {
     config.autoStart = autoStart;
   }
 
+  const idleMotion = record['idleMotion'];
+  if (typeof idleMotion === 'boolean') {
+    config.idleMotion = idleMotion;
+  }
+
   const anchorPosition = record['anchorPosition'];
   if (typeof anchorPosition === 'object' && anchorPosition !== null) {
     const point = anchorPosition as Record<string, unknown>;
@@ -89,6 +98,7 @@ export function serializeConfig(config: AppConfig): string {
       activeSkinId: config.activeSkinId,
       alwaysOnTop: config.alwaysOnTop,
       autoStart: config.autoStart,
+      idleMotion: config.idleMotion,
       anchorPosition: { x: config.anchorPosition.x, y: config.anchorPosition.y },
     },
     null,

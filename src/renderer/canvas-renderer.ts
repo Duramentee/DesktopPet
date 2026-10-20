@@ -54,10 +54,16 @@ export class CanvasRenderer implements Renderer {
     context.setTransform(1, 0, 0, 1, 0, 0);
     context.clearRect(0, 0, this.canvas.width, this.canvas.height);
     const image = this.images.get(frame.frameFile);
-    if (image !== undefined) {
-      context.setTransform(this.scale, 0, 0, this.scale, 0, 0);
-      context.drawImage(image, 0, 0, this.logical.width, this.logical.height);
+    if (image === undefined) {
+      return;
     }
+    const { width, height } = this.logical;
+    const motion = frame.motion;
+    context.setTransform(this.scale, 0, 0, this.scale, 0, 0);
+    // 以底边中点为基准：呼吸时脚底位置不变，张望时整只宠物平移
+    context.translate(width / 2 + motion.offsetX, height + motion.offsetY);
+    context.scale(1, motion.scaleY);
+    context.drawImage(image, -width / 2, -height, width, height);
   }
 
   private applyBackingStore(): void {

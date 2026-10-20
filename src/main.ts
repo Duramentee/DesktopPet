@@ -5,6 +5,7 @@
  */
 
 import { PetController } from './app/controller';
+import { IdleMotion } from './core/animation/idle-motion';
 import { CanvasRenderer } from './renderer/canvas-renderer';
 import { createTauriWindowBackend } from './platform/window';
 import { createTauriStorage } from './platform/storage';
@@ -47,6 +48,7 @@ async function startPet(logger: Logger): Promise<void> {
     storage: await createTauriStorage(),
     skins: await createFetchSkinRepository(),
     autostart: await createTauriAutostart(),
+    idleMotion: new IdleMotion(),
     workAreas: listWorkAreas,
     fallbackSkinId: 'default',
   });
@@ -133,8 +135,10 @@ async function startPet(logger: Logger): Promise<void> {
     event.preventDefault();
     void popupContextMenu({
       autoStartEnabled: () => controller.autoStartEnabled(),
+      idleMotionEnabled: () => controller.idleMotionEnabled(),
       onToggleAlwaysOnTop: () => controller.toggleAlwaysOnTop(),
       onToggleAutoStart: () => controller.toggleAutoStart(),
+      onToggleIdleMotion: () => controller.toggleIdleMotion(),
       onOpenSkinManager: () => openSkinManager(),
       onOpenLogs: () => openLogFolder(),
       onQuit: async () => {

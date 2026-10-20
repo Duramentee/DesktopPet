@@ -30,6 +30,7 @@ describe('配置存储', () => {
       activeSkinId: 'placeholder',
       alwaysOnTop: false,
       autoStart: true,
+      idleMotion: false,
       anchorPosition: { x: 1234, y: 567 },
     };
     saveConfig(store, config);
@@ -70,6 +71,7 @@ describe('配置存储', () => {
       activeSkinId: 'light',
       alwaysOnTop: true,
       autoStart: false,
+      idleMotion: true,
       anchorPosition: { x: 10, y: 20 },
     };
     saveConfig(store, config);
@@ -90,5 +92,13 @@ describe('配置存储', () => {
     const store = new MemoryStore();
     store.seed(JSON.stringify({ autoStart: 'yes' }));
     expect(loadConfig(store).autoStart).toBe(false);
+  });
+
+  it('待机小动作缺省为开，文件中的布尔值会覆盖缺省值', () => {
+    expect(loadConfig(new MemoryStore()).idleMotion).toBe(true);
+
+    const store = new MemoryStore();
+    store.seed(JSON.stringify({ idleMotion: false }));
+    expect(loadConfig(store).idleMotion).toBe(false);
   });
 });

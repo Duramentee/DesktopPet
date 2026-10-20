@@ -7,6 +7,8 @@
 
 import { anchorToWindowTopLeft, windowTopLeftToAnchor } from '../core/layout/anchor';
 import { clampToWorkArea } from '../core/layout/clamp';
+import { NEUTRAL_POSE } from '../core/animation/idle-motion';
+import type { IdleMotion, IdleMotionPose } from '../core/animation/idle-motion';
 import { PetMachine } from '../core/state/machine';
 import type { PetSnapshot } from '../core/state/machine';
 import type { AppConfig } from '../core/config/schema';
@@ -18,6 +20,8 @@ export interface RenderFrame {
   frameFile: string;
   anchorPosition: Point;
   canvas: { width: number; height: number };
+  /** 待机小动作的位姿，渲染层据此做平移与纵向缩放。 */
+  motion: IdleMotionPose;
 }
 
 export interface Renderer {
@@ -62,6 +66,8 @@ export interface ControllerDeps {
   skins: SkinRepository;
   /** 读写系统的开机自启项。 */
   autostart: Autostart;
+  /** 待机小动作的驱动，省略时宠物保持静止。 */
+  idleMotion?: IdleMotion;
   /** 返回当前全部显示器的工作区，单位为逻辑像素。 */
   workAreas: () => Promise<Rect[]> | Rect[];
   /** 配置中的皮肤加载失败时使用的备用皮肤标识。 */
@@ -75,6 +81,7 @@ export class PetController {
   private skin: Skin | null = null;
   private machine: PetMachine | null = null;
   private workAreas: Rect[] = [];
+  private pose: IdleMotionPose = { ...NEUTRAL_POSE };
 
   constructor(deps: ControllerDeps) {
     this.deps = deps;
@@ -109,8 +116,14 @@ export class PetController {
   pointerDown(point: Point): boolean {
     const machine = this.requireMachine();
     const snapshot = machine.dispatch({ type: 'pointerDown', point });
+    const dragging = snapshot.state === 'dragging';
+    if (dragging) {
+      // 抓起的瞬间回到中立位姿，避免带着呼吸的缩放开始拖动
+      this.deps.idleMotion?.reset();
+      this.pose = { ...NEUTRAL_POSE };
+    }
     this.draw();
-    return snapshot.state === 'dragging';
+    return dragging;
   }
 
   /** 处理指针移动，用于未启用系统级拖动时的兜底路径。 */
@@ -152,10 +165,26 @@ export class PetController {
     return this.machine?.snapshot.state === 'dragging';
   }
 
-  /** 推进虚拟时间，驱动当前动画。 */
+  /** 推进虚拟时间，驱动当前动画与待机小动作。 */
   tick(deltaMs: number): void {
-    this.requireMachine().dispatch({ type: 'tick', deltaMs });
+    const machine = this.requireMachine();
+    machine.dispatch({ type: 'tick', deltaMs });
+    this.pose = this.nextPose(deltaMs, machine.snapshot.state === 'idle');
     this.draw();
+  }
+
+  /**
+   * 待机且配置允许时才推进小动作；拖拽或关闭小动作时回到中立位姿。
+   * 中立位姿不再累加时间，重新待机时从呼吸周期的起点开始。
+   */
+  private nextPose(deltaMs: number, idle: boolean): IdleMotionPose {
+    const motion = this.deps.idleMotion;
+    const config = this.config;
+    if (motion === undefined || config === null || !config.idleMotion || !idle) {
+      motion?.reset();
+      return { ...NEUTRAL_POSE };
+    }
+    return motion.advance(deltaMs);
   }
 
   /**
@@ -187,6 +216,19 @@ export class PetController {
     await this.deps.autostart.setEnabled(config.autoStart);
     await this.save();
     return config.autoStart;
+  }
+
+  /** 翻转待机小动作开关，关闭时立刻回到中立位姿。 */
+  async toggleIdleMotion(): Promise<boolean> {
+    const config = this.requireConfig();
+    config.idleMotion = !config.idleMotion;
+    if (!config.idleMotion) {
+      this.deps.idleMotion?.reset();
+      this.pose = { ...NEUTRAL_POSE };
+      this.draw();
+    }
+    await this.save();
+    return config.idleMotion;
   }
 
   /**
@@ -247,6 +289,11 @@ export class PetController {
     return this.requireConfig().autoStart;
   }
 
+  /** 配置中的待机小动作开关，供菜单文字使用。 */
+  idleMotionEnabled(): boolean {
+    return this.requireConfig().idleMotion;
+  }
+
   /** 当前快照，供外部读取。 */
   snapshot(): PetSnapshot {
     return this.requireMachine().snapshot;
@@ -300,6 +347,7 @@ export class PetController {
       frameFile: snapshot.frame.file,
       anchorPosition: snapshot.anchorPosition,
       canvas: { ...skin.canvas },
+      motion: { ...this.pose },
     });
   }
 
@@ -317,6 +365,7 @@ export class PetController {
       activeSkinId: config.activeSkinId,
       alwaysOnTop: config.alwaysOnTop,
       autoStart: config.autoStart,
+      idleMotion: config.idleMotion,
       anchorPosition: { ...config.anchorPosition },
     });
   }

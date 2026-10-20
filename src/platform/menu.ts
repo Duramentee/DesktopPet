@@ -9,8 +9,11 @@
 export interface ContextMenuHandlers {
   /** 返回配置中的开机自启设置，用于决定菜单文字显示“开”还是“关”。 */
   autoStartEnabled: () => boolean;
+  /** 返回配置中的待机小动作设置，用于决定菜单文字显示“开”还是“关”。 */
+  idleMotionEnabled: () => boolean;
   onToggleAlwaysOnTop: () => Promise<unknown> | void;
   onToggleAutoStart: () => Promise<unknown> | void;
+  onToggleIdleMotion: () => Promise<unknown> | void;
   onOpenSkinManager: () => Promise<unknown> | void;
   onOpenLogs: () => Promise<unknown> | void;
   onQuit: () => Promise<unknown> | void;
@@ -38,6 +41,13 @@ export async function popupContextMenu(handlers: ContextMenuHandlers): Promise<v
       text: `开机自启：${handlers.autoStartEnabled() ? '开' : '关'}`,
       action: () => {
         void handlers.onToggleAutoStart();
+      },
+    },
+    {
+      id: 'toggle-idle-motion',
+      text: `待机小动作：${handlers.idleMotionEnabled() ? '开' : '关'}`,
+      action: () => {
+        void handlers.onToggleIdleMotion();
       },
     },
     {

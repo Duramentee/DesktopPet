@@ -11,6 +11,7 @@ import type {
 } from '../../src/app/controller';
 import type { AppConfig } from '../../src/core/config/schema';
 import type { Autostart } from '../../src/platform/autostart';
+import { IdleMotion } from '../../src/core/animation/idle-motion';
 import { loadSkin } from '../../src/core/skin/validate';
 import type { Point, Rect, Skin } from '../../src/core/skin/types';
 import { validManifest } from '../fixtures/skin';
@@ -22,6 +23,7 @@ const START_CONFIG: AppConfig = {
   activeSkinId: 'default',
   alwaysOnTop: false,
   autoStart: false,
+  idleMotion: true,
   anchorPosition: { x: 500, y: 600 },
 };
 
@@ -157,12 +159,19 @@ async function harness(options: {
   const storage = new FakeStorage(options.config ?? START_CONFIG, events);
   const skins = new FakeSkins(options.outcomes ?? { default: okOutcome() });
   const autostart = new FakeAutostart(options.autoStartEnabled ?? false);
+  const idleMotion = new IdleMotion({
+    breathPeriodMs: 1000,
+    breathAmplitude: 0.04,
+    glanceIntervalMs: [1000, 1000],
+    random: () => 0,
+  });
   const controller = new PetController({
     renderer,
     window: windowBackend,
     storage,
     skins,
     autostart,
+    idleMotion,
     workAreas: () => options.workAreas ?? [PRIMARY],
     fallbackSkinId: 'default',
   });
@@ -302,6 +311,35 @@ describe('应用层控制器', () => {
     const h = await harness();
     h.controller.tick(100);
     expect(h.renderer.lastFrame()?.frameFile).toBe('images/idle_1.png');
+  });
+
+  it('待机时推进呼吸，帧上带有非中立的纵向缩放', async () => {
+    const h = await harness();
+    h.controller.tick(500);
+    expect(h.renderer.lastFrame()?.motion.scaleY).toBeCloseTo(0.96, 3);
+    expect(h.renderer.lastFrame()?.motion.offsetX).toBe(0);
+  });
+
+  it('拖拽期间不推进小动作，位姿回到中立', async () => {
+    const h = await harness();
+    h.controller.tick(500);
+    h.controller.pointerDown({ x: 498, y: 586 });
+    expect(h.renderer.lastFrame()?.motion.scaleY).toBe(1);
+
+    h.controller.tick(500);
+    expect(h.renderer.lastFrame()?.motion.scaleY).toBe(1);
+    expect(h.renderer.lastFrame()?.motion.offsetX).toBe(0);
+  });
+
+  it('关闭待机小动作后位姿保持中立并写入配置', async () => {
+    const h = await harness();
+    const enabled = await h.controller.toggleIdleMotion();
+    expect(enabled).toBe(false);
+    expect(h.storage.saved.at(-1)?.idleMotion).toBe(false);
+    expect(h.controller.idleMotionEnabled()).toBe(false);
+
+    h.controller.tick(500);
+    expect(h.renderer.lastFrame()?.motion.scaleY).toBe(1);
   });
 
   it('退出时先保存配置再关闭窗口', async () => {
