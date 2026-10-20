@@ -114,17 +114,6 @@ export class PetMachine {
   }
 
   /**
-   * 直接把锚点移动到给定位置。该入口供操作系统完成窗口拖动之后回写坐标使用。
-   * 只有处于拖拽状态时才生效，并且坐标同样经过位置约束器夹紧。
-   */
-  moveTo(anchorPoint: Point): PetSnapshot {
-    if (this.state === 'dragging') {
-      this.anchorPosition = this.clampPosition(anchorPoint);
-    }
-    return this.snapshot;
-  }
-
-  /**
    * 用当前的约束重新摆放锚点。显示器布局发生变化时调用，
    * 让宠物回到仍然存在的工作区内；无论处于待机还是拖拽中都会生效。
    */

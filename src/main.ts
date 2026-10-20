@@ -76,13 +76,29 @@ async function bootstrap(): Promise<void> {
     });
   });
 
-  // 操作系统完成窗口拖动之后回读窗口位置，把物理像素按当前缩放比例换算成逻辑像素
+  // 操作系统完成窗口拖动之后回读窗口位置，把物理像素按当前缩放比例换算成逻辑像素。
+  // 这条路径只更新锚点与画面，窗口位置由系统的拖拽循环负责，避免互相拉扯造成闪烁。
   const { getCurrentWindow } = await import('@tauri-apps/api/window');
   const currentWindow = getCurrentWindow();
+  let dragFinishTimer: ReturnType<typeof setTimeout> | undefined;
+
+  // 系统拖拽期间网页收不到 pointerup，因此用“位置连续静止一段时间”作为兜底结束条件。
+  // 每次移动都会重置计时器，静止后补写最终位置；拖拽状态也在这里收尾。
+  const scheduleDragFinish = (): void => {
+    if (dragFinishTimer !== undefined) {
+      clearTimeout(dragFinishTimer);
+    }
+    dragFinishTimer = setTimeout(() => {
+      dragFinishTimer = undefined;
+      void controller.pointerUp();
+    }, 400);
+  };
+
   await currentWindow.onMoved(({ payload }) => {
     // 每次都重新读取比例：跨缩放比例不同的显示器拖动后，启动时缓存的比例已经不对
     const scale = resolveScale(window.devicePixelRatio);
-    void controller.syncTopLeft(physicalToLogical(payload, scale));
+    controller.handleWindowMoved(physicalToLogical(payload, scale));
+    scheduleDragFinish();
   });
 
   // 缩放比例变化时窗口的逻辑尺寸不变而物理尺寸变化，需要重新对齐窗口并重建画布

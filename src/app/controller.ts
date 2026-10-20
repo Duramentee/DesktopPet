@@ -119,24 +119,37 @@ export class PetController {
     this.draw();
   }
 
-  /** 结束拖动，把最终位置写入配置与窗口。 */
+  /**
+   * 结束拖动：处于拖拽状态时切回待机动画，然后把当前锚点写回窗口与配置。
+   * 系统拖拽期间网页可能收不到 pointerup，因此这条路径也会被“位置静止”的兜底定时器调用，
+   * 此时状态已经是待机，只补写一次位置。
+   */
   async pointerUp(): Promise<void> {
-    this.requireMachine().dispatch({ type: 'pointerUp', point: this.anchorPosition() });
-    this.draw();
+    if (this.isDragging()) {
+      this.requireMachine().dispatch({ type: 'pointerUp', point: this.anchorPosition() });
+      this.draw();
+    }
     await this.persistPosition();
   }
 
   /**
-   * 在操作系统完成一次窗口移动之后，用窗口左上角坐标回写锚点位置。
-   * 该路径下坐标由操作系统给出，因此同样经过位置约束器夹紧。
+   * 处理操作系统给出的窗口移动。只把窗口左上角换算成锚点并重绘，
+   * 不移动窗口也不写磁盘：系统拖拽期间由它自己的模态循环负责搬窗口，
+   * 这里再调用一次设置位置会与它互相拉扯，表现为窗口在两个位置之间闪烁。
    */
-  async syncTopLeft(topLeft: Point): Promise<void> {
-    const skin = this.requireSkin();
-    const machine = this.requireMachine();
-    const anchor = windowTopLeftToAnchor(topLeft, skin.anchor);
-    machine.moveTo(anchor);
+  handleWindowMoved(topLeft: Point): void {
+    const skin = this.skin;
+    const machine = this.machine;
+    if (skin === null || machine === null) {
+      return;
+    }
+    machine.place(windowTopLeftToAnchor(topLeft, skin.anchor));
     this.draw();
-    await this.persistPosition();
+  }
+
+  /** 是否处于拖拽状态，供拖拽结束的兜底判断使用。 */
+  isDragging(): boolean {
+    return this.machine?.snapshot.state === 'dragging';
   }
 
   /** 推进虚拟时间，驱动当前动画。 */

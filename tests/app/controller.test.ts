@@ -227,12 +227,39 @@ describe('应用层控制器', () => {
     expect(h.window.positions.at(-1)).toEqual({ x: 670, y: 750 });
   });
 
-  it('系统级拖动结束后回写窗口左上角坐标，并按锚点换算成锚点位置', async () => {
+  it('系统拖拽期间只回写锚点，不反向设置窗口位置，也不写磁盘', async () => {
     const h = await harness();
     h.controller.pointerDown({ x: 498, y: 586 });
-    await h.controller.syncTopLeft({ x: 1000, y: 900 });
+    const positionsBefore = h.window.positions.length;
+    const savedBefore = h.storage.saved.length;
+
+    h.controller.handleWindowMoved({ x: 1000, y: 900 });
+
     expect(h.controller.anchorPosition()).toEqual({ x: 1032, y: 964 });
+    expect(h.window.positions).toHaveLength(positionsBefore);
+    expect(h.storage.saved).toHaveLength(savedBefore);
+  });
+
+  it('拖拽结束后把最终锚点写回配置，窗口对齐到夹紧后的位置', async () => {
+    const h = await harness();
+    h.controller.pointerDown({ x: 498, y: 586 });
+    h.controller.handleWindowMoved({ x: 1000, y: 900 });
+    await h.controller.pointerUp();
+
+    expect(h.controller.isDragging()).toBe(false);
     expect(h.storage.saved.at(-1)?.anchorPosition).toEqual({ x: 1032, y: 964 });
+    expect(h.window.positions.at(-1)).toEqual({ x: 1000, y: 900 });
+  });
+
+  it('没有处于拖拽状态时结束拖拽只补写当前锚点，不改变位置', async () => {
+    const h = await harness();
+    const positionsBefore = h.window.positions.length;
+
+    await h.controller.pointerUp();
+
+    expect(h.controller.anchorPosition()).toEqual({ x: 500, y: 600 });
+    expect(h.storage.saved.at(-1)?.anchorPosition).toEqual({ x: 500, y: 600 });
+    expect(h.window.positions.at(-1)).toEqual({ x: 468, y: 536 });
   });
 
   it('位置超出屏幕工作区时被夹紧到工作区边界', async () => {
