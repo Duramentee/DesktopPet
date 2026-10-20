@@ -24,6 +24,19 @@
         "shadow": false,
         "focus": false,
         "visible": true
+      },
+      {
+        "label": "skins",
+        "url": "skins.html",
+        "title": "皮肤管理",
+        "width": 420,
+        "height": 360,
+        "resizable": false,
+        "transparent": false,
+        "alwaysOnTop": false,
+        "skipTaskbar": false,
+        "center": true,
+        "visible": false
       }
     ],
     "security": {

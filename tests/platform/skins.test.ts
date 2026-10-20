@@ -77,4 +77,14 @@ describe('皮肤仓库', () => {
     expect(outcome.code).toBe('S7');
     expect(outcome.reason).toContain('drag_1.png');
   });
+
+  it('预览地址取待机动画的第一帧，并拼在皮肤资源目录下', async () => {
+    const repository = new FetchSkinRepository(backendOf());
+    expect(await repository.previewUrl('default')).toBe('skins/default/images/idle_0.png');
+  });
+
+  it('清单无法读取时预览地址为空', async () => {
+    const repository = new FetchSkinRepository(backendOf({ missingManifest: true }));
+    expect(await repository.previewUrl('default')).toBeNull();
+  });
 });

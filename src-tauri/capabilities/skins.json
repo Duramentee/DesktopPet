@@ -1,0 +1,11 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "skins",
+  "description": "皮肤管理窗口只需要读取配置、广播切换事件与隐藏自身，窗口显示由后端命令负责",
+  "windows": ["skins"],
+  "permissions": [
+    "core:default",
+    "core:event:allow-emit",
+    "core:event:allow-listen"
+  ]
+}

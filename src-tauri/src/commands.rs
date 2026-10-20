@@ -1,6 +1,8 @@
 use crate::store;
 use crate::log;
 
+use tauri::Manager;
+
 /// 运行环境的原始事实，用于前端识别是否处于 WSL 的图形会话中。
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -31,6 +33,25 @@ pub fn append_log(app: tauri::AppHandle, level: String, message: String) -> Resu
 pub fn open_log_dir(app: tauri::AppHandle) -> Result<(), String> {
     let dir = log::log_dir(&app)?;
     open_in_file_manager(&dir)
+}
+
+/// 显示皮肤管理窗口并聚焦。窗口由配置预创建为隐藏状态，这里不新建窗口。
+#[tauri::command]
+pub fn show_skins_window(app: tauri::AppHandle) -> Result<(), String> {
+    let window = app
+        .get_webview_window("skins")
+        .ok_or_else(|| String::from("皮肤管理窗口不存在"))?;
+    window.show().map_err(|error| error.to_string())?;
+    window.set_focus().map_err(|error| error.to_string())
+}
+
+/// 隐藏皮肤管理窗口，保留窗口实例以便再次打开。
+#[tauri::command]
+pub fn hide_skins_window(app: tauri::AppHandle) -> Result<(), String> {
+    let window = app
+        .get_webview_window("skins")
+        .ok_or_else(|| String::from("皮肤管理窗口不存在"))?;
+    window.hide().map_err(|error| error.to_string())
 }
 
 /// 更新托盘图标的提示文字，鼠标悬停时可见。

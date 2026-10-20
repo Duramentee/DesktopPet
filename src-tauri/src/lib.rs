@@ -32,7 +32,9 @@ pub fn run() {
             commands::append_log,
             commands::open_log_dir,
             commands::memory_usage,
-            commands::set_tray_tooltip
+            commands::set_tray_tooltip,
+            commands::show_skins_window,
+            commands::hide_skins_window
         ])
         .run(tauri::generate_context!())
         .expect("启动桌面宠物失败");

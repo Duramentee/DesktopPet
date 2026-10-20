@@ -80,6 +80,20 @@ export class FetchSkinRepository implements SkinRepository {
     this.backend.log(`皮肤 ${id} 校验失败：${result.code} ${result.reason}`);
     return { ok: false, code: result.code, reason: result.reason };
   }
+
+  /** 皮肤待机动画第一帧的地址，供皮肤管理窗口做预览。读取失败时返回 null。 */
+  async previewUrl(id: string): Promise<string | null> {
+    const manifestText = await this.backend.fetchText(`${id}/skin.json`);
+    if (manifestText === null) {
+      return null;
+    }
+    const file = firstIdleFrame(manifestText);
+    if (file === null) {
+      return null;
+    }
+    // 基准路径一律以斜杠结尾，直接拼接即可，不依赖它是否是可解析的绝对地址
+    return `${this.backend.baseUrlOf(id)}${file}`;
+  }
 }
 
 /**
@@ -122,8 +136,31 @@ function extractFrameFiles(manifestText: string): string[] {
   return [...files];
 }
 
-/** 创建基于 fetch 与图片预载的皮肤仓库。只能在 WebView 环境中调用。 */
-export async function createFetchSkinRepository(): Promise<FetchSkinRepository> {
+/**
+ * 尽力取出待机动画的第一帧路径。
+ * 只用于预览，因此对非法输入保持沉默，真正的格式错误由领域层校验器报告。
+ */
+function firstIdleFrame(manifestText: string): string | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(manifestText);
+  } catch {
+    return null;
+  }
+  const animations = (parsed as { animations?: { idle?: { frames?: unknown } } }).animations;
+  const frames = animations?.idle?.frames;
+  if (!Array.isArray(frames) || frames.length === 0) {
+    return null;
+  }
+  const first = frames[0];
+  if (typeof first !== 'object' || first === null) {
+    return null;
+  }
+  const file = (first as { file?: unknown }).file;
+  return typeof file === 'string' && file.length > 0 ? file : null;
+}
+
+/** 创建基于 fetch 与图片预载的皮肤仓库。只能在 WebView 环境中调用。 */export async function createFetchSkinRepository(): Promise<FetchSkinRepository> {
   const base = new URL('skins/', document.baseURI).href;
   const log = (message: string, error?: unknown): void => {
     console.warn(`[skins] ${message}`, error ?? '');
@@ -149,4 +186,16 @@ export async function createFetchSkinRepository(): Promise<FetchSkinRepository> 
     log,
   };
   return new FetchSkinRepository(backend);
+}
+
+/** 打开皮肤管理窗口。窗口由配置预创建为隐藏状态，这里只负责显示与聚焦。 */
+export async function openSkinManager(): Promise<void> {
+  const { invoke } = await import('@tauri-apps/api/core');
+  await invoke('show_skins_window');
+}
+
+/** 隐藏皮肤管理窗口，保留窗口实例以便再次打开。 */
+export async function hideSkinManager(): Promise<void> {
+  const { invoke } = await import('@tauri-apps/api/core');
+  await invoke('hide_skins_window');
 }

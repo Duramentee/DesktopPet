@@ -8,7 +8,7 @@ import { PetController } from './app/controller';
 import { CanvasRenderer } from './renderer/canvas-renderer';
 import { createTauriWindowBackend } from './platform/window';
 import { createTauriStorage } from './platform/storage';
-import { createFetchSkinRepository } from './platform/skins';
+import { createFetchSkinRepository, openSkinManager } from './platform/skins';
 import { listWorkAreas } from './platform/screen';
 import { watchWorkAreas } from './platform/monitors';
 import { createTauriAutostart } from './platform/autostart';
@@ -55,6 +55,22 @@ async function startPet(logger: Logger): Promise<void> {
 
   // 显示器热插拔没有对应事件，改为轮询布局指纹，变化时把宠物夹回可见区域
   watchWorkAreas((areas) => controller.applyWorkAreas(areas), { list: listWorkAreas });
+
+  // 皮肤管理窗口通过事件请求切换皮肤，成功后把当前皮肤广播回去用于高亮
+  const { emit: emitEvent, listen: listenEvent } = await import('@tauri-apps/api/event');
+  await listenEvent<{ id: string }>('pet:switch-skin', async ({ payload }) => {
+    const id = payload?.id;
+    if (typeof id !== 'string') {
+      return;
+    }
+    const switched = await controller.switchSkin(id);
+    if (switched) {
+      logger.info(`切换皮肤：${id}`);
+      await emitEvent('pet:skin-changed', { id });
+    } else {
+      logger.warn(`切换到皮肤 ${id} 失败`);
+    }
+  });
 
   // 识别运行环境并输出已知的能力降级项，使降级表现有明确的原因可循
   const runtimeKind = detectRuntime(await readRuntimeInfo());
@@ -116,11 +132,10 @@ async function startPet(logger: Logger): Promise<void> {
   canvas.addEventListener('contextmenu', (event) => {
     event.preventDefault();
     void popupContextMenu({
-      listSkins: () => controller.listSkins(),
       autoStartEnabled: () => controller.autoStartEnabled(),
       onToggleAlwaysOnTop: () => controller.toggleAlwaysOnTop(),
       onToggleAutoStart: () => controller.toggleAutoStart(),
-      onSwitchSkin: (id) => controller.switchSkin(id),
+      onOpenSkinManager: () => openSkinManager(),
       onOpenLogs: () => openLogFolder(),
       onQuit: async () => {
         logger.info('用户请求退出');

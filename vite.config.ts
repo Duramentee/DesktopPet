@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
 
 export default defineConfig({
@@ -14,5 +15,12 @@ export default defineConfig({
     target: 'es2022',
     emptyOutDir: true,
     sourcemap: false,
+    // 宠物窗口与皮肤管理窗口各有一个入口
+    rollupOptions: {
+      input: {
+        main: fileURLToPath(new URL('./index.html', import.meta.url)),
+        skins: fileURLToPath(new URL('./skins.html', import.meta.url)),
+      },
+    },
   },
 });
