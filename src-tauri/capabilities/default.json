@@ -1,0 +1,17 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "允许宠物窗口使用窗口位置控制、置顶控制、系统级拖动、显示器查询与原生菜单",
+  "windows": ["pet"],
+  "permissions": [
+    "core:default",
+    "core:window:allow-set-position",
+    "core:window:allow-set-always-on-top",
+    "core:window:allow-start-dragging",
+    "core:window:allow-hide",
+    "core:window:allow-show",
+    "core:window:allow-close",
+    "core:window:allow-available-monitors",
+    "core:menu:default"
+  ]
+}

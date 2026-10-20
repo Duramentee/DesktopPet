@@ -1,0 +1,45 @@
+{
+  "id": "default",
+  "displayName": "占位皮肤",
+  "formatVersion": 1,
+  "canvas": {
+    "width": 64,
+    "height": 64
+  },
+  "anchor": {
+    "x": 32,
+    "y": 64
+  },
+  "animations": {
+    "idle": {
+      "fps": 8,
+      "loop": true,
+      "frames": [
+        {
+          "file": "images/idle_0.png"
+        },
+        {
+          "file": "images/idle_1.png"
+        },
+        {
+          "file": "images/idle_2.png"
+        },
+        {
+          "file": "images/idle_3.png"
+        }
+      ]
+    },
+    "drag": {
+      "fps": 12,
+      "loop": true,
+      "frames": [
+        {
+          "file": "images/drag_0.png"
+        },
+        {
+          "file": "images/drag_1.png"
+        }
+      ]
+    }
+  }
+}

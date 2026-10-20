@@ -1,0 +1,26 @@
+{
+  "name": "desktop-pet",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "一个可以拖动、可换皮肤的桌面宠物",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "tauri": "tauri",
+    "skin:generate": "node scripts/generate-placeholder-skin.mjs"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.12.3",
+    "@types/node": "^26.6.5",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.4",
+    "vitest": "^5.0.5"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.12.4"
+  }
+}

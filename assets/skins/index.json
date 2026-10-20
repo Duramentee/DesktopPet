@@ -1,0 +1,12 @@
+{
+  "skins": [
+    {
+      "id": "default",
+      "displayName": "占位皮肤"
+    },
+    {
+      "id": "midnight",
+      "displayName": "午夜皮肤"
+    }
+  ]
+}
