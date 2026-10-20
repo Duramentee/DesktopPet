@@ -7,12 +7,13 @@
  */
 
 import type { RenderFrame, Renderer } from '../app/controller';
-import type { Skin } from '../core/skin/types';
+import type { Point, Skin } from '../core/skin/types';
 import { backingStoreSize, resolveScale } from './dpi';
 
 export class CanvasRenderer implements Renderer {
   private readonly canvas: HTMLCanvasElement;
   private readonly images = new Map<string, HTMLImageElement>();
+  private readonly masks = new Map<string, Uint8ClampedArray>();
   private baseUrl = '';
   private logical = { width: 0, height: 0 };
   private scale = 1;
@@ -40,6 +41,7 @@ export class CanvasRenderer implements Renderer {
       }
     }
     this.images.clear();
+    this.masks.clear();
     await Promise.all([...files].map((file) => this.loadImage(file)));
   }
 
@@ -84,11 +86,64 @@ export class CanvasRenderer implements Renderer {
     }
   }
 
+  /**
+   * 画布坐标处是否落在该帧不透明的像素上，用于决定窗口要不要拦截鼠标。
+   * 掩码读取失败时按不透明处理，宁可让宠物可点，也不要让它变成点不到的装饰。
+   */
+  isOpaqueAt(frameFile: string, point: Point): boolean {
+    const mask = this.maskOf(frameFile);
+    if (mask === null) {
+      return true;
+    }
+    const x = Math.floor(point.x);
+    const y = Math.floor(point.y);
+    if (x < 0 || y < 0 || x >= this.logical.width || y >= this.logical.height) {
+      return false;
+    }
+    return (mask[y * this.logical.width + x] ?? 0) > 8;
+  }
+
+  private maskOf(frameFile: string): Uint8ClampedArray | null {
+    const cached = this.masks.get(frameFile);
+    if (cached !== undefined) {
+      return cached;
+    }
+    const image = this.images.get(frameFile);
+    if (image === undefined || this.logical.width <= 0 || this.logical.height <= 0) {
+      return null;
+    }
+    const width = this.logical.width;
+    const height = this.logical.height;
+    const scratch = document.createElement('canvas');
+    scratch.width = width;
+    scratch.height = height;
+    const context = scratch.getContext('2d', { willReadFrequently: true });
+    if (context === null) {
+      return null;
+    }
+    context.drawImage(image, 0, 0, width, height);
+    let pixels: Uint8ClampedArray;
+    try {
+      pixels = context.getImageData(0, 0, width, height).data;
+    } catch (error) {
+      console.warn('[renderer] 无法读取帧的透明度掩码', error);
+      return null;
+    }
+    const mask = new Uint8ClampedArray(width * height);
+    for (let index = 0; index < mask.length; index += 1) {
+      mask[index] = pixels[index * 4 + 3] ?? 0;
+    }
+    this.masks.set(frameFile, mask);
+    return mask;
+  }
+
   private loadImage(file: string): Promise<void> {
     // 版本号让热加载时的同名文件重新读取，而不是复用网页里上一次的解码结果
     const url = `${new URL(this.baseUrl + file, document.baseURI).href}?g=${this.generation}`;
     return new Promise<void>((resolve) => {
       const image = new Image();
+      // 用户皮肤走自定义协议，属于跨源请求；只有带 CORS 加载才能在离屏画布上读取像素
+      image.crossOrigin = 'anonymous';
       image.onload = () => {
         this.images.set(file, image);
         resolve();

@@ -16,6 +16,7 @@ import type { Point } from '../core/skin/types';
 export interface TauriWindowLike {
   setPosition(position: Point): Promise<void>;
   setSize(width: number, height: number): Promise<void>;
+  setIgnoreCursorEvents(value: boolean): Promise<void>;
   setAlwaysOnTop(value: boolean): Promise<void>;
   startDragging(): Promise<void>;
   hide(): Promise<void>;
@@ -53,6 +54,14 @@ export class TauriWindowBackend implements WindowBackend {
       await this.win.setSize(width, height);
     } catch (error) {
       this.onError('设置窗口尺寸失败，当前平台可能未采纳该请求', error);
+    }
+  }
+
+  async setIgnoreCursorEvents(value: boolean): Promise<void> {
+    try {
+      await this.win.setIgnoreCursorEvents(value);
+    } catch (error) {
+      this.onError('切换鼠标穿透失败，当前平台可能未采纳该请求', error);
     }
   }
 
@@ -105,6 +114,7 @@ export async function createTauriWindowBackend(): Promise<TauriWindowBackend> {
   const win: TauriWindowLike = {
     setPosition: (position) => current.setPosition(new LogicalPosition(position.x, position.y)),
     setSize: (width, height) => current.setSize(new LogicalSize(width, height)),
+    setIgnoreCursorEvents: (value) => current.setIgnoreCursorEvents(value),
     setAlwaysOnTop: (value) => current.setAlwaysOnTop(value),
     startDragging: () => current.startDragging(),
     hide: () => current.hide(),

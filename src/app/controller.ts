@@ -29,6 +29,8 @@ export interface Renderer {
   prepareSkin(skin: Skin, baseUrl: string): Promise<void> | void;
   /** 设备像素比变化时重设画布后备存储；不关心像素比的实现可以省略。 */
   setScale?(scale: number): void;
+  /** 画布坐标是否落在该帧不透明的像素上；省略时视为整块画布都可交互。 */
+  isOpaqueAt?(frameFile: string, point: Point): boolean;
   draw(frame: RenderFrame): void;
 }
 
@@ -36,6 +38,8 @@ export interface WindowBackend {
   setTopLeft(point: Point): Promise<void> | void;
   /** 把窗口调整成皮肤的画布尺寸，单位是逻辑像素。 */
   setSize(width: number, height: number): Promise<void> | void;
+  /** 设置窗口是否忽略鼠标，忽略时点击会穿透到下层窗口。 */
+  setIgnoreCursorEvents(value: boolean): Promise<void> | void;
   setAlwaysOnTop(value: boolean): Promise<void> | void;
   quit(): Promise<void> | void;
 }
@@ -163,6 +167,27 @@ export class PetController {
   /** 是否处于拖拽状态，供拖拽结束的兜底判断使用。 */
   isDragging(): boolean {
     return this.machine?.snapshot.state === 'dragging';
+  }
+
+  /**
+   * 屏幕坐标是否落在宠物身上不透明的像素上。
+   * 窗口据此决定是否拦截鼠标：落在透明区域时让点击穿透到桌面。
+   * 渲染层没有提供透明度查询时按整块画布都可交互处理。
+   */
+  isPointOnPet(screenPoint: Point): boolean {
+    const skin = this.skin;
+    const machine = this.machine;
+    if (skin === null || machine === null) {
+      return true;
+    }
+    const opaque = this.deps.renderer.isOpaqueAt;
+    if (opaque === undefined) {
+      return true;
+    }
+    const snapshot = machine.snapshot;
+    const topLeft = anchorToWindowTopLeft(snapshot.anchorPosition, skin.anchor);
+    const canvasPoint = { x: screenPoint.x - topLeft.x, y: screenPoint.y - topLeft.y };
+    return opaque.call(this.deps.renderer, snapshot.frame.file, canvasPoint);
   }
 
   /** 推进虚拟时间，驱动当前动画与待机小动作。 */

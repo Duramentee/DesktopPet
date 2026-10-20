@@ -12,6 +12,7 @@ import { createTauriStorage } from './platform/storage';
 import { createFetchSkinRepository, openSkinManager, watchSkinChanges } from './platform/skins';
 import { listWorkAreas } from './platform/screen';
 import { watchWorkAreas } from './platform/monitors';
+import { readCursorPosition, watchPointerRegion } from './platform/pointer-region';
 import { createTauriAutostart } from './platform/autostart';
 import { popupContextMenu } from './platform/menu';
 import { degradedCapabilities, detectRuntime, readRuntimeInfo } from './platform/runtime';
@@ -57,6 +58,17 @@ async function startPet(logger: Logger): Promise<void> {
 
   // 显示器热插拔没有对应事件，改为轮询布局指纹，变化时把宠物夹回可见区域
   watchWorkAreas((areas) => controller.applyWorkAreas(areas), { list: listWorkAreas });
+
+  // 透明像素不拦截鼠标：光标落在宠物轮廓之外时让窗口穿透，落在身上时恢复交互
+  watchPointerRegion({
+    cursor: readCursorPosition,
+    isOnPet: (point) => controller.isPointOnPet(point),
+    isSuspended: () => controller.isDragging(),
+    onChange: (interactive) => windowBackend.setIgnoreCursorEvents(!interactive),
+    onError: (error) => {
+      logger.warn(`读取光标位置失败，暂停穿透判断：${String(error)}`);
+    },
+  });
 
   // 皮肤管理窗口通过事件请求切换皮肤，成功后把当前皮肤广播回去用于高亮
   const { emit: emitEvent, listen: listenEvent } = await import('@tauri-apps/api/event');

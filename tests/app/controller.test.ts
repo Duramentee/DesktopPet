@@ -43,6 +43,7 @@ class FakeRenderer implements Renderer {
   prepared: { skinId: string; baseUrl: string } | null = null;
   frames: RenderFrame[] = [];
   scales: number[] = [];
+  opaque: (frameFile: string, point: Point) => boolean = () => true;
 
   prepareSkin(skin: Skin, baseUrl: string): void {
     this.prepared = { skinId: skin.manifest.id, baseUrl };
@@ -50,6 +51,10 @@ class FakeRenderer implements Renderer {
 
   setScale(scale: number): void {
     this.scales.push(scale);
+  }
+
+  isOpaqueAt(frameFile: string, point: Point): boolean {
+    return this.opaque(frameFile, point);
   }
 
   draw(frame: RenderFrame): void {
@@ -64,6 +69,7 @@ class FakeRenderer implements Renderer {
 class FakeWindow implements WindowBackend {
   positions: Point[] = [];
   sizes: { width: number; height: number }[] = [];
+  ignored: boolean[] = [];
   alwaysOnTop: boolean[] = [];
   quitCalls = 0;
 
@@ -77,6 +83,11 @@ class FakeWindow implements WindowBackend {
   setSize(width: number, height: number): void {
     this.sizes.push({ width, height });
     this.events.push('setSize');
+  }
+
+  setIgnoreCursorEvents(value: boolean): void {
+    this.ignored.push(value);
+    this.events.push('setIgnoreCursorEvents');
   }
 
   setAlwaysOnTop(value: boolean): void {
@@ -359,6 +370,25 @@ describe('应用层控制器', () => {
 
     h.controller.tick(500);
     expect(h.renderer.lastFrame()?.motion.scaleY).toBe(1);
+  });
+
+  it('把屏幕坐标换算成画布坐标后交给渲染层判断是否落在宠物像素上', async () => {
+    const h = await harness();
+    const calls: { frameFile: string; point: Point }[] = [];
+    h.renderer.opaque = (frameFile, point) => {
+      calls.push({ frameFile, point });
+      return point.x >= 20 && point.x <= 40;
+    };
+    // 锚点 (500, 600) 减去锚点偏移 (32, 64) 得到窗口左上角 (468, 536)
+    expect(h.controller.isPointOnPet({ x: 488, y: 566 })).toBe(true);
+    expect(h.controller.isPointOnPet({ x: 450, y: 566 })).toBe(false);
+    expect(calls[0]).toEqual({ frameFile: 'images/idle_0.png', point: { x: 20, y: 30 } });
+  });
+
+  it('渲染层没有透明度查询时按整块画布可交互处理', async () => {
+    const h = await harness();
+    (h.renderer as { isOpaqueAt?: unknown }).isOpaqueAt = undefined;
+    expect(h.controller.isPointOnPet({ x: 0, y: 0 })).toBe(true);
   });
 
   it('退出时先保存配置再关闭窗口', async () => {
