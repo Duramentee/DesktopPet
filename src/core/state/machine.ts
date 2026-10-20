@@ -133,6 +133,12 @@ export class PetMachine {
     return this.snapshot;
   }
 
+  /** 把锚点直接放到给定位置，不受拖拽状态限制，坐标同样经过夹紧。 */
+  place(anchorPoint: Point): PetSnapshot {
+    this.anchorPosition = this.clampPosition(anchorPoint);
+    return this.snapshot;
+  }
+
   private handlePointerUp(): void {
     if (this.state !== 'dragging') {
       return;

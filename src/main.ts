@@ -14,6 +14,7 @@ import { watchWorkAreas } from './platform/monitors';
 import { createTauriAutostart } from './platform/autostart';
 import { popupContextMenu } from './platform/menu';
 import { degradedCapabilities, detectRuntime, readRuntimeInfo } from './platform/runtime';
+import { physicalToLogical, resolveScale } from './renderer/dpi';
 
 async function bootstrap(): Promise<void> {
   const canvas = document.querySelector<HTMLCanvasElement>('#pet');
@@ -77,9 +78,18 @@ async function bootstrap(): Promise<void> {
 
   // 操作系统完成窗口拖动之后回读窗口位置，把物理像素按当前缩放比例换算成逻辑像素
   const { getCurrentWindow } = await import('@tauri-apps/api/window');
-  const scale = window.devicePixelRatio > 0 ? window.devicePixelRatio : 1;
-  await getCurrentWindow().onMoved(({ payload }) => {
-    void controller.syncTopLeft({ x: payload.x / scale, y: payload.y / scale });
+  const currentWindow = getCurrentWindow();
+  await currentWindow.onMoved(({ payload }) => {
+    // 每次都重新读取比例：跨缩放比例不同的显示器拖动后，启动时缓存的比例已经不对
+    const scale = resolveScale(window.devicePixelRatio);
+    void controller.syncTopLeft(physicalToLogical(payload, scale));
+  });
+
+  // 缩放比例变化时窗口的逻辑尺寸不变而物理尺寸变化，需要重新对齐窗口并重建画布
+  await currentWindow.onScaleChanged(async ({ payload }) => {
+    const scale = resolveScale(payload.scaleFactor);
+    const physical = await currentWindow.outerPosition();
+    await controller.handleScaleChanged(scale, physicalToLogical(physical, scale));
   });
 }
 

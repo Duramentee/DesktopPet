@@ -23,6 +23,8 @@ export interface RenderFrame {
 export interface Renderer {
   /** 准备皮肤：设置画布尺寸并预载全部帧，返回后可以立即绘制。 */
   prepareSkin(skin: Skin, baseUrl: string): Promise<void> | void;
+  /** 设备像素比变化时重设画布后备存储；不关心像素比的实现可以省略。 */
+  setScale?(scale: number): void;
   draw(frame: RenderFrame): void;
 }
 
@@ -141,6 +143,19 @@ export class PetController {
   tick(deltaMs: number): void {
     this.requireMachine().dispatch({ type: 'tick', deltaMs });
     this.draw();
+  }
+
+  /**
+   * 设备像素比变化后的重新对齐。逻辑尺寸不变而物理尺寸变化，
+   * 因此用新比例把窗口左上角换算回锚点，再刷新窗口尺寸与画布后备存储。
+   */
+  async handleScaleChanged(scale: number, topLeft: Point): Promise<void> {
+    const skin = this.requireSkin();
+    this.deps.renderer.setScale?.(scale);
+    this.requireMachine().place(windowTopLeftToAnchor(topLeft, skin.anchor));
+    await this.deps.window.setSize(skin.canvas.width, skin.canvas.height);
+    this.draw();
+    await this.persistPosition();
   }
 
   /** 翻转置顶状态并写入配置。 */

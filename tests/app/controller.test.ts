@@ -40,9 +40,14 @@ function okOutcome(id = 'default', manifest = validManifest({ id })): SkinLoadOu
 class FakeRenderer implements Renderer {
   prepared: { skinId: string; baseUrl: string } | null = null;
   frames: RenderFrame[] = [];
+  scales: number[] = [];
 
   prepareSkin(skin: Skin, baseUrl: string): void {
     this.prepared = { skinId: skin.manifest.id, baseUrl };
+  }
+
+  setScale(scale: number): void {
+    this.scales.push(scale);
   }
 
   draw(frame: RenderFrame): void {
@@ -323,5 +328,16 @@ describe('应用层控制器', () => {
     expect(h.controller.anchorPosition()).toEqual({ x: 500, y: 600 });
     expect(h.storage.saved).toHaveLength(savedBefore);
     expect(h.window.positions).toHaveLength(positionsBefore);
+  });
+
+  it('缩放比例变化后按新比例回写锚点，并刷新画布与窗口尺寸', async () => {
+    const h = await harness();
+    // 逻辑 (468, 536) 加上锚点偏移 (32, 64) 还原出锚点 (500, 600)
+    await h.controller.handleScaleChanged(2, { x: 468, y: 536 });
+    expect(h.renderer.scales).toEqual([2]);
+    expect(h.controller.anchorPosition()).toEqual({ x: 500, y: 600 });
+    expect(h.window.sizes.at(-1)).toEqual({ width: 64, height: 64 });
+    expect(h.window.positions.at(-1)).toEqual({ x: 468, y: 536 });
+    expect(h.storage.saved.at(-1)?.anchorPosition).toEqual({ x: 500, y: 600 });
   });
 });

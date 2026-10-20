@@ -179,4 +179,16 @@ describe('状态机', () => {
     });
     expect(machine.reclamp().anchorPosition).toEqual({ x: 500, y: 600 });
   });
+
+  it('直接放置锚点时不受拖拽状态限制，并且同样经过夹紧', () => {
+    const machine = new PetMachine({
+      skin: loadFixtureSkin(),
+      anchorPosition: { x: 100, y: 200 },
+      clampPosition: (point) => ({ x: Math.min(point.x, 50), y: Math.min(point.y, 60) }),
+    });
+    const snapshot = machine.place({ x: 900, y: 900 });
+    expect(snapshot.anchorPosition).toEqual({ x: 50, y: 60 });
+    expect(snapshot.state).toBe('idle');
+    expect(snapshot.animationName).toBe('idle');
+  });
 });
