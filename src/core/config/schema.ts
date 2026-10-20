@@ -9,6 +9,8 @@ import type { Point } from '../skin/types';
 export interface AppConfig {
   activeSkinId: string;
   alwaysOnTop: boolean;
+  /** 是否随系统登录自动启动，实际状态由平台层的自启项决定。 */
+  autoStart: boolean;
   anchorPosition: Point;
 }
 
@@ -21,6 +23,7 @@ export interface ConfigStore {
 export const DEFAULT_CONFIG: AppConfig = Object.freeze({
   activeSkinId: 'default',
   alwaysOnTop: true,
+  autoStart: false,
   anchorPosition: Object.freeze({ x: 960, y: 1040 }) as Point,
 }) as AppConfig;
 
@@ -29,6 +32,7 @@ export function createDefaultConfig(): AppConfig {
   return {
     activeSkinId: DEFAULT_CONFIG.activeSkinId,
     alwaysOnTop: DEFAULT_CONFIG.alwaysOnTop,
+    autoStart: DEFAULT_CONFIG.autoStart,
     anchorPosition: { ...DEFAULT_CONFIG.anchorPosition },
   };
 }
@@ -60,6 +64,11 @@ export function parseConfig(text: string | null): AppConfig {
     config.alwaysOnTop = alwaysOnTop;
   }
 
+  const autoStart = record['autoStart'];
+  if (typeof autoStart === 'boolean') {
+    config.autoStart = autoStart;
+  }
+
   const anchorPosition = record['anchorPosition'];
   if (typeof anchorPosition === 'object' && anchorPosition !== null) {
     const point = anchorPosition as Record<string, unknown>;
@@ -79,6 +88,7 @@ export function serializeConfig(config: AppConfig): string {
     {
       activeSkinId: config.activeSkinId,
       alwaysOnTop: config.alwaysOnTop,
+      autoStart: config.autoStart,
       anchorPosition: { x: config.anchorPosition.x, y: config.anchorPosition.y },
     },
     null,

@@ -11,6 +11,7 @@ import { PetMachine } from '../core/state/machine';
 import type { PetSnapshot } from '../core/state/machine';
 import type { AppConfig } from '../core/config/schema';
 import type { Point, Rect, Skin, SkinIssueCode } from '../core/skin/types';
+import type { Autostart } from '../platform/autostart';
 
 export interface RenderFrame {
   animationName: string;
@@ -57,6 +58,8 @@ export interface ControllerDeps {
   window: WindowBackend;
   storage: Storage;
   skins: SkinRepository;
+  /** 读写系统的开机自启项。 */
+  autostart: Autostart;
   /** 返回当前全部显示器的工作区，单位为逻辑像素。 */
   workAreas: () => Promise<Rect[]> | Rect[];
   /** 配置中的皮肤加载失败时使用的备用皮肤标识。 */
@@ -89,9 +92,11 @@ export class PetController {
       await this.save();
     }
     await this.installSkin(outcome.skin, outcome.baseUrl);
-    await this.deps.window.setAlwaysOnTop(this.config.alwaysOnTop);    await this.deps.window.setTopLeft(
+    await this.deps.window.setAlwaysOnTop(this.config.alwaysOnTop);
+    await this.deps.window.setTopLeft(
       anchorToWindowTopLeft(this.config.anchorPosition, outcome.skin.anchor),
     );
+    await this.syncAutostart();
     this.draw();
   }
 
@@ -147,6 +152,31 @@ export class PetController {
     return config.alwaysOnTop;
   }
 
+  /** 翻转开机自启状态，把系统自启项与配置一起改成新状态。 */
+  async toggleAutoStart(): Promise<boolean> {
+    const config = this.requireConfig();
+    config.autoStart = !config.autoStart;
+    await this.deps.autostart.setEnabled(config.autoStart);
+    await this.save();
+    return config.autoStart;
+  }
+
+  /**
+   * 显示器布局变化后重新夹紧锚点。位置确实变化时把窗口挪回去并写入配置，
+   * 位置没有变化则不产生任何写入。
+   */
+  async applyWorkAreas(workAreas: Rect[]): Promise<void> {
+    this.workAreas = workAreas;
+    const before = this.anchorPosition();
+    this.requireMachine().reclamp();
+    this.draw();
+    const after = this.anchorPosition();
+    if (before.x === after.x && before.y === after.y) {
+      return;
+    }
+    await this.persistPosition();
+  }
+
   /** 切换皮肤。切换失败时保持当前皮肤不变。 */
   async switchSkin(id: string): Promise<boolean> {
     const outcome = await this.resolveSkin(id);
@@ -184,6 +214,11 @@ export class PetController {
     return snapshot.anchorPosition;
   }
 
+  /** 配置中的开机自启设置，供菜单文字使用。 */
+  autoStartEnabled(): boolean {
+    return this.requireConfig().autoStart;
+  }
+
   /** 当前快照，供外部读取。 */
   snapshot(): PetSnapshot {
     return this.requireMachine().snapshot;
@@ -216,6 +251,15 @@ export class PetController {
     await this.deps.window.setSize(skin.canvas.width, skin.canvas.height);
   }
 
+  /** 让系统的自启项与配置保持一致，两者相同时不重复写系统。 */
+  private async syncAutostart(): Promise<void> {
+    const config = this.requireConfig();
+    const enabled = await this.deps.autostart.isEnabled();
+    if (enabled !== config.autoStart) {
+      await this.deps.autostart.setEnabled(config.autoStart);
+    }
+  }
+
   private draw(): void {
     const machine = this.machine;
     const skin = this.skin;
@@ -244,6 +288,7 @@ export class PetController {
     await this.deps.storage.save({
       activeSkinId: config.activeSkinId,
       alwaysOnTop: config.alwaysOnTop,
+      autoStart: config.autoStart,
       anchorPosition: { ...config.anchorPosition },
     });
   }

@@ -10,6 +10,7 @@ import type {
   WindowBackend,
 } from '../../src/app/controller';
 import type { AppConfig } from '../../src/core/config/schema';
+import type { Autostart } from '../../src/platform/autostart';
 import { loadSkin } from '../../src/core/skin/validate';
 import type { Point, Rect, Skin } from '../../src/core/skin/types';
 import { validManifest } from '../fixtures/skin';
@@ -20,6 +21,7 @@ const PRIMARY: Rect = { x: 0, y: 0, width: 1920, height: 1080 };
 const START_CONFIG: AppConfig = {
   activeSkinId: 'default',
   alwaysOnTop: false,
+  autoStart: false,
   anchorPosition: { x: 500, y: 600 },
 };
 
@@ -111,11 +113,30 @@ class FakeSkins implements SkinRepository {
   }
 }
 
+class FakeAutostart implements Autostart {
+  enabled: boolean;
+  setCalls: boolean[] = [];
+
+  constructor(enabled = false) {
+    this.enabled = enabled;
+  }
+
+  async isEnabled(): Promise<boolean> {
+    return this.enabled;
+  }
+
+  async setEnabled(value: boolean): Promise<void> {
+    this.enabled = value;
+    this.setCalls.push(value);
+  }
+}
+
 interface Harness {
   controller: PetController;
   renderer: FakeRenderer;
   window: FakeWindow;
   storage: FakeStorage;
+  autostart: FakeAutostart;
   events: string[];
 }
 
@@ -123,22 +144,25 @@ async function harness(options: {
   config?: AppConfig;
   outcomes?: Record<string, SkinLoadOutcome>;
   workAreas?: Rect[];
+  autoStartEnabled?: boolean;
 } = {}): Promise<Harness> {
   const events: string[] = [];
   const renderer = new FakeRenderer();
   const windowBackend = new FakeWindow(events);
   const storage = new FakeStorage(options.config ?? START_CONFIG, events);
   const skins = new FakeSkins(options.outcomes ?? { default: okOutcome() });
+  const autostart = new FakeAutostart(options.autoStartEnabled ?? false);
   const controller = new PetController({
     renderer,
     window: windowBackend,
     storage,
     skins,
+    autostart,
     workAreas: () => options.workAreas ?? [PRIMARY],
     fallbackSkinId: 'default',
   });
   await controller.start();
-  return { controller, renderer, window: windowBackend, storage, events };
+  return { controller, renderer, window: windowBackend, storage, autostart, events };
 }
 
 describe('应用层控制器', () => {
@@ -253,5 +277,51 @@ describe('应用层控制器', () => {
     await h.controller.quit();
     expect(h.events.slice(-2)).toEqual(['save', 'quit']);
     expect(h.window.quitCalls).toBe(1);
+  });
+
+  it('启动时把系统自启项同步成配置里的取值', async () => {
+    const h = await harness({
+      config: { ...START_CONFIG, autoStart: true },
+      autoStartEnabled: false,
+    });
+    expect(h.autostart.setCalls).toEqual([true]);
+    expect(h.autostart.enabled).toBe(true);
+  });
+
+  it('系统自启项与配置一致时不重复写系统', async () => {
+    const h = await harness({
+      config: { ...START_CONFIG, autoStart: true },
+      autoStartEnabled: true,
+    });
+    expect(h.autostart.setCalls).toEqual([]);
+  });
+
+  it('翻转开机自启时同时改系统自启项与配置', async () => {
+    const h = await harness();
+    const enabled = await h.controller.toggleAutoStart();
+    expect(enabled).toBe(true);
+    expect(h.autostart.setCalls).toEqual([true]);
+    expect(h.storage.saved.at(-1)?.autoStart).toBe(true);
+    expect(h.controller.autoStartEnabled()).toBe(true);
+  });
+
+  it('显示器缩小后把宠物夹回新的工作区并写入配置', async () => {
+    const h = await harness();
+    const small: Rect = { x: 0, y: 0, width: 320, height: 240 };
+    await h.controller.applyWorkAreas([small]);
+    // 夹具锚点为 (500, 600)，缩到 320x240 后应贴到右下角
+    expect(h.controller.anchorPosition()).toEqual({ x: 320, y: 240 });
+    expect(h.window.positions.at(-1)).toEqual({ x: 288, y: 176 });
+    expect(h.storage.saved.at(-1)?.anchorPosition).toEqual({ x: 320, y: 240 });
+  });
+
+  it('显示器布局变化但没有影响位置时不产生额外写入', async () => {
+    const h = await harness();
+    const savedBefore = h.storage.saved.length;
+    const positionsBefore = h.window.positions.length;
+    await h.controller.applyWorkAreas([{ x: 0, y: 0, width: 1920, height: 1080 }]);
+    expect(h.controller.anchorPosition()).toEqual({ x: 500, y: 600 });
+    expect(h.storage.saved).toHaveLength(savedBefore);
+    expect(h.window.positions).toHaveLength(positionsBefore);
   });
 });

@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { loadSkin } from '../../src/core/skin/validate';
+import { clampToWorkArea } from '../../src/core/layout/clamp';
 import { PetMachine } from '../../src/core/state/machine';
-import type { Skin } from '../../src/core/skin/types';
+import type { Rect, Skin } from '../../src/core/skin/types';
 import { validManifest } from '../fixtures/skin';
 
 /**
@@ -157,5 +158,25 @@ describe('状态机', () => {
     machine.dispatch({ type: 'pointerDown', point: { x: 98, y: 186 } });
     const snapshot = machine.dispatch({ type: 'pointerMove', point: { x: 900, y: 900 } });
     expect(snapshot.anchorPosition).toEqual({ x: 10, y: 20 });
+  });
+
+  it('显示器变小后重新夹紧，把越界的锚点拉回工作区内', () => {
+    let areas: Rect[] = [{ x: 0, y: 0, width: 1920, height: 1080 }];
+    const machine = new PetMachine({
+      skin: loadFixtureSkin(),
+      anchorPosition: { x: 500, y: 600 },
+      clampPosition: (point) => clampToWorkArea(point, areas),
+    });
+    areas = [{ x: 0, y: 0, width: 320, height: 240 }];
+    expect(machine.reclamp().anchorPosition).toEqual({ x: 320, y: 240 });
+  });
+
+  it('位置仍在工作区内时重新夹紧不改变锚点', () => {
+    const machine = new PetMachine({
+      skin: loadFixtureSkin(),
+      anchorPosition: { x: 500, y: 600 },
+      clampPosition: (point) => clampToWorkArea(point, [{ x: 0, y: 0, width: 1920, height: 1080 }]),
+    });
+    expect(machine.reclamp().anchorPosition).toEqual({ x: 500, y: 600 });
   });
 });

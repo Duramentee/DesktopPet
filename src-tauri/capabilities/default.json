@@ -13,6 +13,7 @@
     "core:window:allow-show",
     "core:window:allow-close",
     "core:window:allow-available-monitors",
-    "core:menu:default"
+    "core:menu:default",
+    "autostart:default"
   ]
 }

@@ -124,6 +124,15 @@ export class PetMachine {
     return this.snapshot;
   }
 
+  /**
+   * 用当前的约束重新摆放锚点。显示器布局发生变化时调用，
+   * 让宠物回到仍然存在的工作区内；无论处于待机还是拖拽中都会生效。
+   */
+  reclamp(): PetSnapshot {
+    this.anchorPosition = this.clampPosition(this.anchorPosition);
+    return this.snapshot;
+  }
+
   private handlePointerUp(): void {
     if (this.state !== 'dragging') {
       return;

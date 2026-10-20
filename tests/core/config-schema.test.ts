@@ -29,6 +29,7 @@ describe('配置存储', () => {
     const config: AppConfig = {
       activeSkinId: 'placeholder',
       alwaysOnTop: false,
+      autoStart: true,
       anchorPosition: { x: 1234, y: 567 },
     };
     saveConfig(store, config);
@@ -68,11 +69,26 @@ describe('配置存储', () => {
     const config: AppConfig = {
       activeSkinId: 'light',
       alwaysOnTop: true,
+      autoStart: false,
       anchorPosition: { x: 10, y: 20 },
     };
     saveConfig(store, config);
     const raw = store.read();
     expect(raw).not.toBeNull();
     expect(JSON.parse(raw ?? 'null')).toEqual(config);
+  });
+
+  it('开机自启缺省为关，文件中的布尔值会覆盖缺省值', () => {
+    expect(loadConfig(new MemoryStore()).autoStart).toBe(false);
+
+    const store = new MemoryStore();
+    store.seed(JSON.stringify({ autoStart: true }));
+    expect(loadConfig(store).autoStart).toBe(true);
+  });
+
+  it('开机自启字段类型错误时回退到缺省值', () => {
+    const store = new MemoryStore();
+    store.seed(JSON.stringify({ autoStart: 'yes' }));
+    expect(loadConfig(store).autoStart).toBe(false);
   });
 });

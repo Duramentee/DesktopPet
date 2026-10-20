@@ -10,6 +10,8 @@ import { createTauriWindowBackend } from './platform/window';
 import { createTauriStorage } from './platform/storage';
 import { createFetchSkinRepository } from './platform/skins';
 import { listWorkAreas } from './platform/screen';
+import { watchWorkAreas } from './platform/monitors';
+import { createTauriAutostart } from './platform/autostart';
 import { popupContextMenu } from './platform/menu';
 import { degradedCapabilities, detectRuntime, readRuntimeInfo } from './platform/runtime';
 
@@ -25,11 +27,15 @@ async function bootstrap(): Promise<void> {
     window: windowBackend,
     storage: await createTauriStorage(),
     skins: await createFetchSkinRepository(),
+    autostart: await createTauriAutostart(),
     workAreas: listWorkAreas,
     fallbackSkinId: 'default',
   });
 
   await controller.start();
+
+  // 显示器热插拔没有对应事件，改为轮询布局指纹，变化时把宠物夹回可见区域
+  watchWorkAreas((areas) => controller.applyWorkAreas(areas), { list: listWorkAreas });
 
   // 识别运行环境并输出已知的能力降级项，使降级表现有明确的原因可循
   const runtimeKind = detectRuntime(await readRuntimeInfo());
@@ -61,7 +67,9 @@ async function bootstrap(): Promise<void> {
     event.preventDefault();
     void popupContextMenu({
       listSkins: () => controller.listSkins(),
+      autoStartEnabled: () => controller.autoStartEnabled(),
       onToggleAlwaysOnTop: () => controller.toggleAlwaysOnTop(),
+      onToggleAutoStart: () => controller.toggleAutoStart(),
       onSwitchSkin: (id) => controller.switchSkin(id),
       onQuit: () => controller.quit(),
     });

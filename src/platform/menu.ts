@@ -9,7 +9,10 @@ import type { SkinSummary } from '../app/controller';
 
 export interface ContextMenuHandlers {
   listSkins: () => Promise<SkinSummary[]>;
+  /** 返回配置中的开机自启设置，用于决定菜单文字显示“开”还是“关”。 */
+  autoStartEnabled: () => boolean;
   onToggleAlwaysOnTop: () => Promise<unknown> | void;
+  onToggleAutoStart: () => Promise<unknown> | void;
   onSwitchSkin: (id: string) => Promise<unknown> | void;
   onQuit: () => Promise<unknown> | void;
 }
@@ -30,6 +33,13 @@ export async function popupContextMenu(handlers: ContextMenuHandlers): Promise<v
       text: '切换置顶',
       action: () => {
         void handlers.onToggleAlwaysOnTop();
+      },
+    },
+    {
+      id: 'toggle-auto-start',
+      text: `开机自启：${handlers.autoStartEnabled() ? '开' : '关'}`,
+      action: () => {
+        void handlers.onToggleAutoStart();
       },
     },
     ...skins.map((skin) => ({

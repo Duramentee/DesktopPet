@@ -1,0 +1,14 @@
+# 仅对 Windows 的 GNU 目标生效。
+#
+# LLVM-MinGW 不自带 libgcc，因此链接时改用 Rust 自带的 mingw 自包含库；
+# 它的 gcc 驱动链接出的可执行文件会在启动时崩溃，所以直接用 rust-lld；
+# debug 构建的 cdylib 导出符号会超过 PE 的 65535 上限，只保留 .def 中列出的导出。
+#
+# 使用 MSVC 工具链（Visual Studio 生成工具）时本节不生效，无需改动。
+[target.x86_64-pc-windows-gnu]
+rustflags = [
+  "-C", "link-self-contained=yes",
+  "-C", "linker-flavor=ld.lld",
+  "-C", "linker=rust-lld",
+  "-C", "link-arg=--exclude-all-symbols",
+]
