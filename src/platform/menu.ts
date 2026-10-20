@@ -14,6 +14,7 @@ export interface ContextMenuHandlers {
   onToggleAlwaysOnTop: () => Promise<unknown> | void;
   onToggleAutoStart: () => Promise<unknown> | void;
   onSwitchSkin: (id: string) => Promise<unknown> | void;
+  onOpenLogs: () => Promise<unknown> | void;
   onQuit: () => Promise<unknown> | void;
 }
 
@@ -49,6 +50,13 @@ export async function popupContextMenu(handlers: ContextMenuHandlers): Promise<v
         void handlers.onSwitchSkin(skin.id);
       },
     })),
+    {
+      id: 'open-logs',
+      text: '打开日志目录',
+      action: () => {
+        void handlers.onOpenLogs();
+      },
+    },
     {
       id: 'quit',
       text: '退出',

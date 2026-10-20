@@ -1,4 +1,5 @@
 mod commands;
+mod log;
 mod store;
 mod tray;
 mod window_style;
@@ -12,6 +13,12 @@ pub fn run() {
             None,
         ))
         .setup(|app| {
+            // 图形程序没有控制台，panic 信息必须落盘，否则崩溃之后没有任何线索
+            let handle = app.handle().clone();
+            std::panic::set_hook(Box::new(move |info| {
+                let _ = log::write(&handle, "panic", &info.to_string());
+            }));
+
             tray::create(app.handle())?;
             if let Some(window) = app.get_webview_window("pet") {
                 window_style::prepare_pet_window(&window)?;
@@ -21,7 +28,11 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::load_config,
             commands::save_config,
-            commands::runtime_info
+            commands::runtime_info,
+            commands::append_log,
+            commands::open_log_dir,
+            commands::memory_usage,
+            commands::set_tray_tooltip
         ])
         .run(tauri::generate_context!())
         .expect("启动桌面宠物失败");

@@ -15,8 +15,26 @@ import { createTauriAutostart } from './platform/autostart';
 import { popupContextMenu } from './platform/menu';
 import { degradedCapabilities, detectRuntime, readRuntimeInfo } from './platform/runtime';
 import { physicalToLogical, resolveScale } from './renderer/dpi';
+import { FpsMeter } from './renderer/fps';
+import type { FpsReport } from './renderer/fps';
+import { createTauriLogger, installErrorReporting, openLogFolder } from './platform/logger';
+import type { Logger } from './platform/logger';
+import { formatMegabytes, readMemoryUsage, setTrayTooltip } from './platform/diagnostics';
+
+/** 帧率统计窗口，每满一个窗口把结果写进托盘提示，偏低时落日志。 */
+const HEALTH_WINDOW_MS = 30_000;
+/** 正常状态下每十分钟留一条心跳日志，便于确认程序仍在运行。 */
+const HEARTBEAT_MS = 10 * 60_000;
+/** 低于该帧率视为异常，落一条警告。 */
+const LOW_FPS = 45;
 
 async function bootstrap(): Promise<void> {
+  const logger = await createTauriLogger();
+  installErrorReporting(logger);
+  await startPet(logger);
+}
+
+async function startPet(logger: Logger): Promise<void> {
   const canvas = document.querySelector<HTMLCanvasElement>('#pet');
   if (canvas === null) {
     throw new Error('页面中缺少画布元素，程序无法启动');
@@ -43,11 +61,42 @@ async function bootstrap(): Promise<void> {
   for (const warning of degradedCapabilities(runtimeKind)) {
     console.warn(`[runtime] ${warning.capability}受限：${warning.reason}`);
   }
+  logger.info(
+    `启动完成：环境 ${runtimeKind}，缩放 ${resolveScale(window.devicePixelRatio)}，画布 ${canvas.width}x${canvas.height}`,
+  );
 
   let previous = performance.now();
+  const fpsMeter = new FpsMeter(HEALTH_WINDOW_MS);
+  let lastHeartbeat = previous;
+  let firstReport = true;
+
+  const publishHealth = async (report: FpsReport, now: number): Promise<void> => {
+    const memory = await readMemoryUsage();
+    const summary = `${report.fps} fps · ${formatMegabytes(memory)}`;
+    await setTrayTooltip(`桌面宠物 · ${summary}`);
+    if (firstReport) {
+      firstReport = false;
+      logger.info(`首个统计窗口：${summary}，最长帧 ${report.longestFrameMs} 毫秒`);
+      return;
+    }
+    if (report.fps < LOW_FPS) {
+      logger.warn(`帧率偏低：${summary}，最长帧 ${report.longestFrameMs} 毫秒`);
+      return;
+    }
+    if (now - lastHeartbeat >= HEARTBEAT_MS) {
+      lastHeartbeat = now;
+      logger.info(`运行正常：${summary}`);
+    }
+  };
+
   const frameLoop = (now: number): void => {
-    controller.tick(now - previous);
+    const delta = now - previous;
     previous = now;
+    controller.tick(delta);
+    const report = fpsMeter.sample(delta);
+    if (report !== null) {
+      void publishHealth(report, now);
+    }
     requestAnimationFrame(frameLoop);
   };
   requestAnimationFrame(frameLoop);
@@ -72,7 +121,12 @@ async function bootstrap(): Promise<void> {
       onToggleAlwaysOnTop: () => controller.toggleAlwaysOnTop(),
       onToggleAutoStart: () => controller.toggleAutoStart(),
       onSwitchSkin: (id) => controller.switchSkin(id),
-      onQuit: () => controller.quit(),
+      onOpenLogs: () => openLogFolder(),
+      onQuit: async () => {
+        logger.info('用户请求退出');
+        await logger.flush();
+        await controller.quit();
+      },
     });
   });
 
