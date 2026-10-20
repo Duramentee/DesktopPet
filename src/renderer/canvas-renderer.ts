@@ -16,6 +16,8 @@ export class CanvasRenderer implements Renderer {
   private baseUrl = '';
   private logical = { width: 0, height: 0 };
   private scale = 1;
+  /** 每次准备皮肤递增，用作图片地址的版本号，避免网页复用上一次的解码结果。 */
+  private generation = 0;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -27,6 +29,7 @@ export class CanvasRenderer implements Renderer {
    */
   async prepareSkin(skin: Skin, baseUrl: string): Promise<void> {
     this.baseUrl = baseUrl;
+    this.generation += 1;
     this.logical = { width: skin.canvas.width, height: skin.canvas.height };
     this.scale = resolveScale(currentDevicePixelRatio());
     this.applyBackingStore();
@@ -82,7 +85,8 @@ export class CanvasRenderer implements Renderer {
   }
 
   private loadImage(file: string): Promise<void> {
-    const url = new URL(this.baseUrl + file, document.baseURI).href;
+    // 版本号让热加载时的同名文件重新读取，而不是复用网页里上一次的解码结果
+    const url = `${new URL(this.baseUrl + file, document.baseURI).href}?g=${this.generation}`;
     return new Promise<void>((resolve) => {
       const image = new Image();
       image.onload = () => {

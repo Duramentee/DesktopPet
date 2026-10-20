@@ -247,6 +247,25 @@ export class PetController {
     await this.persistPosition();
   }
 
+  /**
+   * 重新加载当前皮肤。用户目录中的皮肤包被修改后调用。
+   * 这里只加载配置中指定的那一份：加载失败时保留现有画面不动，
+   * 不像启动时那样回退到备用皮肤，避免热加载把用户的皮肤悄悄换掉。
+   */
+  async reloadActiveSkin(): Promise<boolean> {
+    const config = this.requireConfig();
+    const loaded = await this.deps.skins.load(config.activeSkinId);
+    if (!loaded.ok) {
+      return false;
+    }
+    await this.installSkin(loaded.skin, loaded.baseUrl);
+    await this.deps.window.setTopLeft(
+      anchorToWindowTopLeft(config.anchorPosition, loaded.skin.anchor),
+    );
+    this.draw();
+    return true;
+  }
+
   /** 切换皮肤。切换失败时保持当前皮肤不变。 */
   async switchSkin(id: string): Promise<boolean> {
     const outcome = await this.resolveSkin(id);

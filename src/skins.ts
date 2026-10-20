@@ -9,7 +9,6 @@
 import { createFetchSkinRepository, hideSkinManager } from './platform/skins';
 import { buildGalleryCards } from './ui/skin-gallery';
 import type { GalleryCard } from './ui/skin-gallery';
-
 const EMPTY_HINT = '没有可用的皮肤，请检查 skins/index.json';
 
 async function readActiveSkinId(): Promise<string> {
@@ -77,26 +76,32 @@ async function bootstrap(): Promise<void> {
   const repository = await createFetchSkinRepository();
   const { emit, listen } = await import('@tauri-apps/api/event');
 
-  const skins = await repository.list();
-  const previews = new Map<string, string | null>();
-  await Promise.all(
-    skins.map(async (skin) => {
-      previews.set(skin.id, await repository.previewUrl(skin.id));
-    }),
-  );
-
   let activeId = await readActiveSkinId();
-  renderCards(buildGalleryCards(skins, activeId, previews), (id) => {
-    activeId = id;
-    markActive(id);
-    void emit('pet:switch-skin', { id });
-  });
-  markActive(activeId);
+  let paintCount = 0;
 
-  const status = document.querySelector<HTMLElement>('#status');
-  if (status !== null && skins.length > 0) {
-    status.textContent = `共 ${skins.length} 份皮肤`;
-  }
+  const paint = async (): Promise<void> => {
+    paintCount += 1;
+    const version = String(paintCount);
+    const skins = await repository.list();
+    const previews = new Map<string, string | null>();
+    await Promise.all(
+      skins.map(async (skin) => {
+        previews.set(skin.id, await repository.previewUrl(skin.id, version));
+      }),
+    );
+    renderCards(buildGalleryCards(skins, activeId, previews), (id) => {
+      activeId = id;
+      markActive(id);
+      void emit('pet:switch-skin', { id });
+    });
+    markActive(activeId);
+    const status = document.querySelector<HTMLElement>('#status');
+    if (status !== null) {
+      status.textContent = skins.length === 0 ? '' : `共 ${skins.length} 份皮肤`;
+    }
+  };
+
+  await paint();
 
   // 宠物窗口切换成功后会把当前皮肤广播回来，这里同步高亮
   await listen<{ id: string }>('pet:skin-changed', ({ payload }) => {
@@ -104,6 +109,11 @@ async function bootstrap(): Promise<void> {
       activeId = payload.id;
       markActive(activeId);
     }
+  });
+
+  // 用户皮肤目录发生变化时重新拉取列表与预览，实现热加载
+  await listen('pet:skins-changed', () => {
+    void paint();
   });
 
   document.addEventListener('keydown', (event) => {

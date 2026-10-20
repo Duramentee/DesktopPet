@@ -9,7 +9,7 @@ import { IdleMotion } from './core/animation/idle-motion';
 import { CanvasRenderer } from './renderer/canvas-renderer';
 import { createTauriWindowBackend } from './platform/window';
 import { createTauriStorage } from './platform/storage';
-import { createFetchSkinRepository, openSkinManager } from './platform/skins';
+import { createFetchSkinRepository, openSkinManager, watchSkinChanges } from './platform/skins';
 import { listWorkAreas } from './platform/screen';
 import { watchWorkAreas } from './platform/monitors';
 import { createTauriAutostart } from './platform/autostart';
@@ -72,6 +72,17 @@ async function startPet(logger: Logger): Promise<void> {
     } else {
       logger.warn(`切换到皮肤 ${id} 失败`);
     }
+  });
+
+  // 用户皮肤目录被修改后自动重新加载当前皮肤，并把变化广播给皮肤管理窗口
+  watchSkinChanges(async () => {
+    const reloaded = await controller.reloadActiveSkin();
+    if (reloaded) {
+      logger.info('检测到皮肤目录变化，已重新加载当前皮肤');
+    } else {
+      logger.warn('检测到皮肤目录变化，但当前皮肤无法重新加载');
+    }
+    await emitEvent('pet:skins-changed', { reloaded });
   });
 
   // 识别运行环境并输出已知的能力降级项，使降级表现有明确的原因可循

@@ -109,7 +109,7 @@ class FakeStorage implements Storage {
 }
 
 class FakeSkins implements SkinRepository {
-  constructor(private readonly outcomes: Record<string, SkinLoadOutcome>) {}
+  constructor(readonly outcomes: Record<string, SkinLoadOutcome>) {}
 
   async list(): Promise<SkinSummary[]> {
     return Object.keys(this.outcomes).map((id) => ({ id, displayName: id }));
@@ -143,6 +143,7 @@ interface Harness {
   renderer: FakeRenderer;
   window: FakeWindow;
   storage: FakeStorage;
+  skins: FakeSkins;
   autostart: FakeAutostart;
   events: string[];
 }
@@ -176,7 +177,7 @@ async function harness(options: {
     fallbackSkinId: 'default',
   });
   await controller.start();
-  return { controller, renderer, window: windowBackend, storage, autostart, events };
+  return { controller, renderer, window: windowBackend, storage, skins, autostart, events };
 }
 
 describe('应用层控制器', () => {
@@ -284,6 +285,24 @@ describe('应用层控制器', () => {
     expect(result).toBe(true);
     expect(h.window.alwaysOnTop.at(-1)).toBe(true);
     expect(h.storage.saved.at(-1)?.alwaysOnTop).toBe(true);
+  });
+
+  it('重新加载当前皮肤时重新准备资源，位置按皮肤锚点重新对齐', async () => {
+    const h = await harness();
+    h.renderer.prepared = null;
+    const switched = await h.controller.reloadActiveSkin();
+    expect(switched).toBe(true);
+    expect(h.renderer.prepared).toEqual({ skinId: 'default', baseUrl: 'skins/default/' });
+    expect(h.window.positions.at(-1)).toEqual({ x: 468, y: 536 });
+  });
+
+  it('皮肤包被删除后重新加载失败，保留当前皮肤不变', async () => {
+    const h = await harness();
+    const prepared = h.renderer.prepared;
+    delete h.skins.outcomes['default'];
+
+    expect(await h.controller.reloadActiveSkin()).toBe(false);
+    expect(h.renderer.prepared).toBe(prepared);
   });
 
   it('切换皮肤后渲染层重新准备资源，并且立即使用新皮肤的帧', async () => {

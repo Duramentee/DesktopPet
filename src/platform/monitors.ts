@@ -8,6 +8,7 @@
 
 import type { Rect } from '../core/skin/types';
 import { listWorkAreas } from './screen';
+import { pollForChanges } from './poller';
 
 export interface WorkAreaWatcherDeps {
   /** 读取当前全部显示器的工作区，默认使用平台层的实现。 */
@@ -32,44 +33,12 @@ export function watchWorkAreas(
   onChange: (areas: Rect[]) => Promise<void> | void,
   deps: WorkAreaWatcherDeps = {},
 ): () => void {
-  const list = deps.list ?? listWorkAreas;
-  const intervalMs = deps.intervalMs ?? 2000;
-  const onError = deps.onError ?? ((error: unknown) => console.warn('[monitors] 轮询显示器布局失败', error));
-
-  let signature: string | null = null;
-  let running = false;
-  let stopped = false;
-
-  const check = async (): Promise<void> => {
-    if (running || stopped) {
-      return;
-    }
-    running = true;
-    try {
-      const areas = await list();
-      const next = workAreaSignature(areas);
-      if (signature === null) {
-        signature = next;
-        return;
-      }
-      if (next !== signature) {
-        signature = next;
-        await onChange(areas);
-      }
-    } catch (error) {
-      onError(error);
-    } finally {
-      running = false;
-    }
-  };
-
-  void check();
-  const timer = setInterval(() => {
-    void check();
-  }, intervalMs);
-
-  return () => {
-    stopped = true;
-    clearInterval(timer);
-  };
+  return pollForChanges({
+    read: deps.list ?? listWorkAreas,
+    signature: workAreaSignature,
+    onChange,
+    intervalMs: deps.intervalMs ?? 2000,
+    onError: deps.onError,
+    label: '显示器布局',
+  });
 }

@@ -1,5 +1,6 @@
 mod commands;
 mod log;
+mod skins;
 mod store;
 mod tray;
 mod window_style;
@@ -12,6 +13,10 @@ pub fn run() {
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
         ))
+        // 用户皮肤目录通过自定义协议读取，支持运行中新增与修改皮肤包
+        .register_uri_scheme_protocol("skin", |context, request| {
+            skins::handle_protocol(context.app_handle(), request)
+        })
         .setup(|app| {
             // 图形程序没有控制台，panic 信息必须落盘，否则崩溃之后没有任何线索
             let handle = app.handle().clone();
@@ -34,7 +39,9 @@ pub fn run() {
             commands::memory_usage,
             commands::set_tray_tooltip,
             commands::show_skins_window,
-            commands::hide_skins_window
+            commands::hide_skins_window,
+            skins::user_skin_ids,
+            skins::skins_signature
         ])
         .run(tauri::generate_context!())
         .expect("启动桌面宠物失败");
