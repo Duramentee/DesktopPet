@@ -9,6 +9,18 @@ use tauri::Manager;
 
 pub fn run() {
     tauri::Builder::default()
+        // 必须最先注册：第二个实例会在初始化其它插件之前退出，把控制权交给已经运行的进程
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            let _ = log::write(app, "info", "检测到第二个实例，已把宠物窗口提到前台");
+            if let Some(window) = app.get_webview_window("pet") {
+                let _ = window.show();
+            }
+            if let Some(skins) = app.get_webview_window("skins") {
+                if skins.is_visible().unwrap_or(false) {
+                    let _ = skins.set_focus();
+                }
+            }
+        }))
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
