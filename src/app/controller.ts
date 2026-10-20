@@ -27,6 +27,8 @@ export interface Renderer {
 
 export interface WindowBackend {
   setTopLeft(point: Point): Promise<void> | void;
+  /** 把窗口调整成皮肤的画布尺寸，单位是逻辑像素。 */
+  setSize(width: number, height: number): Promise<void> | void;
   setAlwaysOnTop(value: boolean): Promise<void> | void;
   quit(): Promise<void> | void;
 }
@@ -155,6 +157,10 @@ export class PetController {
       return false;
     }
     await this.installSkin(outcome.skin, outcome.baseUrl);
+    // 新皮肤的锚点与画布尺寸可能不同，按新锚点重新对齐窗口左上角
+    await this.deps.window.setTopLeft(
+      anchorToWindowTopLeft(this.requireConfig().anchorPosition, outcome.skin.anchor),
+    );
     this.requireConfig().activeSkinId = id;
     await this.save();
     this.draw();
@@ -207,6 +213,7 @@ export class PetController {
       clampPosition: (point) => clampToWorkArea(point, this.workAreas),
     });
     await this.deps.renderer.prepareSkin(skin, baseUrl);
+    await this.deps.window.setSize(skin.canvas.width, skin.canvas.height);
   }
 
   private draw(): void {

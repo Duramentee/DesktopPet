@@ -5,6 +5,7 @@ import type { Point } from '../../src/core/skin/types';
 
 class FakeTauriWindow implements TauriWindowLike {
   positions: Point[] = [];
+  sizes: { width: number; height: number }[] = [];
   alwaysOnTop: boolean[] = [];
   dragCalls = 0;
   hideCalls = 0;
@@ -14,6 +15,10 @@ class FakeTauriWindow implements TauriWindowLike {
 
   async setPosition(position: Point): Promise<void> {
     this.positions.push(position);
+  }
+
+  async setSize(width: number, height: number): Promise<void> {
+    this.sizes.push({ width, height });
   }
 
   async setAlwaysOnTop(value: boolean): Promise<void> {
@@ -54,6 +59,17 @@ describe('窗口后端', () => {
     await backend.setAlwaysOnTop(false);
     await backend.setAlwaysOnTop(true);
     expect(win.alwaysOnTop).toEqual([false, true]);
+  });
+
+  it('窗口尺寸按逻辑像素转发给 Tauri 窗口对象', async () => {
+    const win = new FakeTauriWindow();
+    const backend = new TauriWindowBackend(win, { onError: () => {} });
+    await backend.setSize(64, 64);
+    await backend.setSize(128, 96);
+    expect(win.sizes).toEqual([
+      { width: 64, height: 64 },
+      { width: 128, height: 96 },
+    ]);
   });
 
   it('平台拒绝置顶请求时不抛出异常，只记录一次错误', async () => {

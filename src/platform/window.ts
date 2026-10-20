@@ -15,6 +15,7 @@ import type { Point } from '../core/skin/types';
 /** 对 Tauri 窗口对象的抽象，只包含本程序实际使用的方法。 */
 export interface TauriWindowLike {
   setPosition(position: Point): Promise<void>;
+  setSize(width: number, height: number): Promise<void>;
   setAlwaysOnTop(value: boolean): Promise<void>;
   startDragging(): Promise<void>;
   hide(): Promise<void>;
@@ -44,6 +45,14 @@ export class TauriWindowBackend implements WindowBackend {
       await this.win.setPosition({ x: point.x, y: point.y });
     } catch (error) {
       this.onError('设置窗口位置失败，当前平台可能未采纳该请求', error);
+    }
+  }
+
+  async setSize(width: number, height: number): Promise<void> {
+    try {
+      await this.win.setSize(width, height);
+    } catch (error) {
+      this.onError('设置窗口尺寸失败，当前平台可能未采纳该请求', error);
     }
   }
 
@@ -91,10 +100,11 @@ export class TauriWindowBackend implements WindowBackend {
 
 /** 创建绑定到当前 Tauri 窗口的后端。只能在 WebView 环境中调用。 */
 export async function createTauriWindowBackend(): Promise<TauriWindowBackend> {
-  const { getCurrentWindow, LogicalPosition } = await import('@tauri-apps/api/window');
+  const { getCurrentWindow, LogicalPosition, LogicalSize } = await import('@tauri-apps/api/window');
   const current = getCurrentWindow();
   const win: TauriWindowLike = {
     setPosition: (position) => current.setPosition(new LogicalPosition(position.x, position.y)),
+    setSize: (width, height) => current.setSize(new LogicalSize(width, height)),
     setAlwaysOnTop: (value) => current.setAlwaysOnTop(value),
     startDragging: () => current.startDragging(),
     hide: () => current.hide(),

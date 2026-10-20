@@ -1,11 +1,17 @@
 mod commands;
 mod store;
 mod tray;
+mod window_style;
+
+use tauri::Manager;
 
 pub fn run() {
     tauri::Builder::default()
         .setup(|app| {
             tray::create(app.handle())?;
+            if let Some(window) = app.get_webview_window("pet") {
+                window_style::prepare_pet_window(&window)?;
+            }
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

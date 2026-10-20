@@ -18,6 +18,10 @@ tauri = { version = "2", features = ["macos-private-api", "tray-icon"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
+[target.'cfg(windows)'.dependencies]
+# 用于去掉窗口的标题栏样式，否则系统会把窗口撑到最小跟踪宽度
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging"] }
+
 # 发布构建以体积为第一优化目标，与需求文档第 3.1 节的安装包体积目标对应
 [profile.release]
 codegen-units = 1

@@ -54,6 +54,7 @@ class FakeRenderer implements Renderer {
 
 class FakeWindow implements WindowBackend {
   positions: Point[] = [];
+  sizes: { width: number; height: number }[] = [];
   alwaysOnTop: boolean[] = [];
   quitCalls = 0;
 
@@ -62,6 +63,11 @@ class FakeWindow implements WindowBackend {
   setTopLeft(point: Point): void {
     this.positions.push(point);
     this.events.push('setTopLeft');
+  }
+
+  setSize(width: number, height: number): void {
+    this.sizes.push({ width, height });
+    this.events.push('setSize');
   }
 
   setAlwaysOnTop(value: boolean): void {
@@ -140,6 +146,7 @@ describe('应用层控制器', () => {
     const h = await harness();
     expect(h.renderer.prepared).toEqual({ skinId: 'default', baseUrl: 'skins/default/' });
     expect(h.window.positions).toEqual([{ x: 468, y: 536 }]);
+    expect(h.window.sizes).toEqual([{ width: 64, height: 64 }]);
     expect(h.window.alwaysOnTop).toEqual([false]);
     expect(h.renderer.frames).toHaveLength(1);
     expect(h.renderer.lastFrame()?.frameFile).toBe('images/idle_0.png');
