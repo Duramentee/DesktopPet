@@ -31,6 +31,7 @@ describe('配置存储', () => {
       alwaysOnTop: false,
       autoStart: true,
       idleMotion: false,
+      scale: 1.25,
       anchorPosition: { x: 1234, y: 567 },
     };
     saveConfig(store, config);
@@ -72,6 +73,7 @@ describe('配置存储', () => {
       alwaysOnTop: true,
       autoStart: false,
       idleMotion: true,
+      scale: 1,
       anchorPosition: { x: 10, y: 20 },
     };
     saveConfig(store, config);

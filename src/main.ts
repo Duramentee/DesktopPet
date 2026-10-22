@@ -178,9 +178,12 @@ async function startPet(logger: Logger): Promise<void> {
     void popupContextMenu({
       autoStartEnabled: () => controller.autoStartEnabled(),
       idleMotionEnabled: () => controller.idleMotionEnabled(),
+      currentScale: () => controller.currentScale(),
       onToggleAlwaysOnTop: () => controller.toggleAlwaysOnTop(),
       onToggleAutoStart: () => controller.toggleAutoStart(),
       onToggleIdleMotion: () => controller.toggleIdleMotion(),
+      onScaleUp: () => controller.stepScale('up'),
+      onScaleDown: () => controller.stepScale('down'),
       onOpenSkinManager: () => openSkinManager(),
       onOpenLogs: () => openLogFolder(),
       onQuit: async () => {

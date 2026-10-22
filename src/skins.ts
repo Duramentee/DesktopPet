@@ -9,6 +9,7 @@
 import { createFetchSkinRepository, hideSkinManager } from './platform/skins';
 import { buildGalleryCards } from './ui/skin-gallery';
 import type { GalleryCard } from './ui/skin-gallery';
+import type { SkinDetails } from './app/controller';
 const EMPTY_HINT = '没有可用的皮肤，请检查 skins/index.json';
 
 async function readActiveSkinId(): Promise<string> {
@@ -57,6 +58,12 @@ function renderCards(cards: GalleryCard[], onPick: (id: string) => void): void {
     label.textContent = card.name;
 
     button.append(preview, label);
+    if (card.meta !== '') {
+      const meta = document.createElement('small');
+      meta.className = 'meta';
+      meta.textContent = card.meta;
+      button.append(meta);
+    }
     gallery.append(button);
   }
 }
@@ -84,12 +91,14 @@ async function bootstrap(): Promise<void> {
     const version = String(paintCount);
     const skins = await repository.list();
     const previews = new Map<string, string | null>();
+    const details = new Map<string, SkinDetails | null>();
     await Promise.all(
       skins.map(async (skin) => {
         previews.set(skin.id, await repository.previewUrl(skin.id, version));
+        details.set(skin.id, (await repository.describe?.(skin.id)) ?? null);
       }),
     );
-    renderCards(buildGalleryCards(skins, activeId, previews), (id) => {
+    renderCards(buildGalleryCards(skins, activeId, previews, details), (id) => {
       activeId = id;
       markActive(id);
       void emit('pet:switch-skin', { id });

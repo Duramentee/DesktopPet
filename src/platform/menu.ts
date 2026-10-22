@@ -11,9 +11,13 @@ export interface ContextMenuHandlers {
   autoStartEnabled: () => boolean;
   /** 返回配置中的待机小动作设置，用于决定菜单文字显示“开”还是“关”。 */
   idleMotionEnabled: () => boolean;
+  /** 当前显示倍率，用于在菜单里显示百分比。 */
+  currentScale: () => number;
   onToggleAlwaysOnTop: () => Promise<unknown> | void;
   onToggleAutoStart: () => Promise<unknown> | void;
   onToggleIdleMotion: () => Promise<unknown> | void;
+  onScaleUp: () => Promise<unknown> | void;
+  onScaleDown: () => Promise<unknown> | void;
   onOpenSkinManager: () => Promise<unknown> | void;
   onOpenLogs: () => Promise<unknown> | void;
   onQuit: () => Promise<unknown> | void;
@@ -22,7 +26,8 @@ export interface ContextMenuHandlers {
 interface NativeMenuItem {
   id: string;
   text: string;
-  action: () => void;
+  enabled?: boolean;
+  action?: () => void;
 }
 
 /** 在光标位置弹出原生右键菜单。 */
@@ -48,6 +53,25 @@ export async function popupContextMenu(handlers: ContextMenuHandlers): Promise<v
       text: `待机小动作：${handlers.idleMotionEnabled() ? '开' : '关'}`,
       action: () => {
         void handlers.onToggleIdleMotion();
+      },
+    },
+    {
+      id: 'scale-label',
+      text: `宠物大小：${Math.round(handlers.currentScale() * 100)}%`,
+      enabled: false,
+    },
+    {
+      id: 'scale-up',
+      text: '放大宠物',
+      action: () => {
+        void handlers.onScaleUp();
+      },
+    },
+    {
+      id: 'scale-down',
+      text: '缩小宠物',
+      action: () => {
+        void handlers.onScaleDown();
       },
     },
     {

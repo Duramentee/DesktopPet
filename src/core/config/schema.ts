@@ -13,8 +13,15 @@ export interface AppConfig {
   autoStart: boolean;
   /** 待机时是否播放呼吸与张望这类小幅动作。 */
   idleMotion: boolean;
+  /** 宠物的显示倍率，窗口尺寸等于皮肤画布乘以该倍率。 */
+  scale: number;
   anchorPosition: Point;
 }
+
+/** 缩放倍率的可选档位，菜单按这个顺序放大与缩小。 */
+export const SCALE_STEPS: readonly number[] = [0.75, 1, 1.25, 1.5, 2];
+export const MIN_SCALE = 0.75;
+export const MAX_SCALE = 2;
 
 export interface ConfigStore {
   read(): string | null;
@@ -27,6 +34,7 @@ export const DEFAULT_CONFIG: AppConfig = Object.freeze({
   alwaysOnTop: true,
   autoStart: false,
   idleMotion: true,
+  scale: 1,
   anchorPosition: Object.freeze({ x: 960, y: 1040 }) as Point,
 }) as AppConfig;
 
@@ -37,6 +45,7 @@ export function createDefaultConfig(): AppConfig {
     alwaysOnTop: DEFAULT_CONFIG.alwaysOnTop,
     autoStart: DEFAULT_CONFIG.autoStart,
     idleMotion: DEFAULT_CONFIG.idleMotion,
+    scale: DEFAULT_CONFIG.scale,
     anchorPosition: { ...DEFAULT_CONFIG.anchorPosition },
   };
 }
@@ -78,6 +87,11 @@ export function parseConfig(text: string | null): AppConfig {
     config.idleMotion = idleMotion;
   }
 
+  const scale = record['scale'];
+  if (typeof scale === 'number' && Number.isFinite(scale) && scale >= MIN_SCALE && scale <= MAX_SCALE) {
+    config.scale = scale;
+  }
+
   const anchorPosition = record['anchorPosition'];
   if (typeof anchorPosition === 'object' && anchorPosition !== null) {
     const point = anchorPosition as Record<string, unknown>;
@@ -99,6 +113,7 @@ export function serializeConfig(config: AppConfig): string {
       alwaysOnTop: config.alwaysOnTop,
       autoStart: config.autoStart,
       idleMotion: config.idleMotion,
+      scale: config.scale,
       anchorPosition: { x: config.anchorPosition.x, y: config.anchorPosition.y },
     },
     null,

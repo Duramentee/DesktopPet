@@ -17,6 +17,8 @@ export class CanvasRenderer implements Renderer {
   private baseUrl = '';
   private logical = { width: 0, height: 0 };
   private scale = 1;
+  /** 用户设置的显示倍率，与设备像素比分开保存：前者改窗口大小，后者只改清晰度。 */
+  private userScale = 1;
   /** 每次准备皮肤递增，用作图片地址的版本号，避免网页复用上一次的解码结果。 */
   private generation = 0;
 
@@ -51,6 +53,12 @@ export class CanvasRenderer implements Renderer {
     this.applyBackingStore();
   }
 
+  /** 用户改变宠物大小时调用：逻辑尺寸不变，CSS 与后备存储同步放大。 */
+  setSkinScale(scale: number): void {
+    this.userScale = Number.isFinite(scale) && scale > 0 ? scale : 1;
+    this.applyBackingStore();
+  }
+
   draw(frame: RenderFrame): void {
     const context = this.canvas.getContext('2d');
     if (context === null) {
@@ -64,7 +72,8 @@ export class CanvasRenderer implements Renderer {
     }
     const { width, height } = this.logical;
     const motion = frame.motion;
-    context.setTransform(this.scale, 0, 0, this.scale, 0, 0);
+    const ratio = this.scale * this.userScale;
+    context.setTransform(ratio, 0, 0, ratio, 0, 0);
     // 以底边中点为基准：呼吸时脚底位置不变，张望时整只宠物平移
     context.translate(width / 2 + motion.offsetX, height + motion.offsetY);
     context.scale(1, motion.scaleY);
@@ -75,11 +84,11 @@ export class CanvasRenderer implements Renderer {
     if (this.logical.width <= 0 || this.logical.height <= 0) {
       return;
     }
-    const size = backingStoreSize(this.logical, this.scale);
+    const size = backingStoreSize(this.logical, this.scale * this.userScale);
     this.canvas.width = size.width;
     this.canvas.height = size.height;
-    this.canvas.style.width = `${this.logical.width}px`;
-    this.canvas.style.height = `${this.logical.height}px`;
+    this.canvas.style.width = `${this.logical.width * this.userScale}px`;
+    this.canvas.style.height = `${this.logical.height * this.userScale}px`;
     const context = this.canvas.getContext('2d');
     if (context !== null) {
       context.imageSmoothingEnabled = true;

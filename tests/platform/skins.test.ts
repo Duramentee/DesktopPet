@@ -153,4 +153,25 @@ describe('皮肤仓库', () => {
       'bundled/default/images/idle_0.png?v=3',
     );
   });
+
+  it('概况给出画布尺寸与两个动画的帧数', async () => {
+    const repository = new FetchSkinRepository(backendOf());
+    expect(await repository.describe('default')).toEqual({
+      canvas: { width: 64, height: 64 },
+      idleFrames: 2,
+      dragFrames: 2,
+    });
+  });
+
+  it('清单无法读取时概况为空', async () => {
+    const repository = new FetchSkinRepository(backendOf({ missingManifest: true }));
+    expect(await repository.describe('default')).toBeNull();
+  });
+
+  it('清单格式非法时概况为空而不是抛异常', async () => {
+    const repository = new FetchSkinRepository(
+      backendOf({ userManifests: { 'broken/skin.json': '{ 不是 JSON' } }),
+    );
+    expect(await repository.describe('broken')).toBeNull();
+  });
 });

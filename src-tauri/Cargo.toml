@@ -1,6 +1,6 @@
 [package]
 name = "desktop-pet"
-version = "0.2.0"
+version = "0.2.1"
 description = "一个可以拖动、可换皮肤的桌面宠物"
 authors = ["desktop-pet contributors"]
 edition = "2021"

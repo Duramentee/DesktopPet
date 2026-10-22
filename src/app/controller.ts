@@ -9,6 +9,8 @@ import { anchorToWindowTopLeft, windowTopLeftToAnchor } from '../core/layout/anc
 import { clampToWorkArea } from '../core/layout/clamp';
 import { NEUTRAL_POSE } from '../core/animation/idle-motion';
 import type { IdleMotion, IdleMotionPose } from '../core/animation/idle-motion';
+import { MAX_SCALE, MIN_SCALE, SCALE_STEPS } from '../core/config/schema';
+import { canvasToFrame } from '../renderer/pose-transform';
 import { PetMachine } from '../core/state/machine';
 import type { PetSnapshot } from '../core/state/machine';
 import type { AppConfig } from '../core/config/schema';
@@ -29,6 +31,8 @@ export interface Renderer {
   prepareSkin(skin: Skin, baseUrl: string): Promise<void> | void;
   /** 设备像素比变化时重设画布后备存储；不关心像素比的实现可以省略。 */
   setScale?(scale: number): void;
+  /** 用户改变宠物大小时重设显示倍率；省略时窗口与画布按一比一处理。 */
+  setSkinScale?(scale: number): void;
   /** 画布坐标是否落在该帧不透明的像素上；省略时视为整块画布都可交互。 */
   isOpaqueAt?(frameFile: string, point: Point): boolean;
   draw(frame: RenderFrame): void;
@@ -54,6 +58,13 @@ export interface SkinSummary {
   displayName: string;
 }
 
+/** 皮肤管理窗口展示的附加信息。 */
+export interface SkinDetails {
+  canvas: { width: number; height: number };
+  idleFrames: number;
+  dragFrames: number;
+}
+
 export type SkinLoadOutcome =
   | { ok: true; skin: Skin; baseUrl: string }
   | { ok: false; code: SkinIssueCode; reason: string };
@@ -61,6 +72,8 @@ export type SkinLoadOutcome =
 export interface SkinRepository {
   list(): Promise<SkinSummary[]>;
   load(id: string): Promise<SkinLoadOutcome>;
+  /** 读取皮肤的尺寸与帧数等概况，供皮肤管理窗口展示；不支持时省略。 */
+  describe?(id: string): Promise<SkinDetails | null>;
 }
 
 export interface ControllerDeps {
@@ -90,6 +103,8 @@ export class PetController {
   private pose: IdleMotionPose = { ...NEUTRAL_POSE };
   /** 上一次真正画出去的内容指纹，用于跳过完全相同的重复绘制。 */
   private lastDrawnSignature: string | null = null;
+  /** 当前显示倍率，窗口尺寸等于皮肤画布乘以它。 */
+  private scale = 1;
 
   constructor(deps: ControllerDeps) {
     this.deps = deps;
@@ -99,6 +114,7 @@ export class PetController {
   /** 读取配置、加载皮肤、恢复窗口位置与置顶状态，并绘制第一帧。 */
   async start(): Promise<void> {
     this.config = await this.deps.storage.load();
+    this.scale = this.config.scale;
     this.workAreas = await this.deps.workAreas();
     const outcome = await this.resolveSkin(this.config.activeSkinId);
     if (outcome === null) {
@@ -111,7 +127,7 @@ export class PetController {
     await this.installSkin(outcome.skin, outcome.baseUrl);
     await this.deps.window.setAlwaysOnTop(this.config.alwaysOnTop);
     await this.deps.window.setTopLeft(
-      anchorToWindowTopLeft(this.config.anchorPosition, outcome.skin.anchor),
+      anchorToWindowTopLeft(this.config.anchorPosition, outcome.skin.anchor, this.scale),
     );
     await this.syncAutostart();
     this.draw();
@@ -164,7 +180,7 @@ export class PetController {
     if (skin === null || machine === null) {
       return;
     }
-    machine.place(windowTopLeftToAnchor(topLeft, skin.anchor));
+    machine.place(windowTopLeftToAnchor(topLeft, skin.anchor, this.scale));
     this.draw();
   }
 
@@ -189,9 +205,15 @@ export class PetController {
       return true;
     }
     const snapshot = machine.snapshot;
-    const topLeft = anchorToWindowTopLeft(snapshot.anchorPosition, skin.anchor);
-    const canvasPoint = { x: screenPoint.x - topLeft.x, y: screenPoint.y - topLeft.y };
-    return opaque.call(this.deps.renderer, snapshot.frame.file, canvasPoint);
+    const topLeft = anchorToWindowTopLeft(snapshot.anchorPosition, skin.anchor, this.scale);
+    // 先按显示倍率换回画布坐标，再按当前位姿换回帧图片坐标：
+    // 呼吸与张望会让画面偏移一到两个像素，不反算回去就会在边缘判错
+    const canvasPoint = {
+      x: (screenPoint.x - topLeft.x) / this.scale,
+      y: (screenPoint.y - topLeft.y) / this.scale,
+    };
+    const framePoint = canvasToFrame(canvasPoint, skin.canvas, this.pose);
+    return opaque.call(this.deps.renderer, snapshot.frame.file, framePoint);
   }
 
   /** 推进虚拟时间，驱动当前动画与待机小动作。 */
@@ -225,10 +247,48 @@ export class PetController {
     this.deps.renderer.setScale?.(scale);
     // 缩放变化会重建画布后备存储并清空画面，因此必须强制重画一次
     this.lastDrawnSignature = null;
-    this.requireMachine().place(windowTopLeftToAnchor(topLeft, skin.anchor));
-    await this.deps.window.setSize(skin.canvas.width, skin.canvas.height);
+    this.requireMachine().place(windowTopLeftToAnchor(topLeft, skin.anchor, this.scale));
+    await this.deps.window.setSize(
+      Math.round(skin.canvas.width * this.scale),
+      Math.round(skin.canvas.height * this.scale),
+    );
     this.draw();
     await this.persistPosition();
+  }
+
+  /**
+   * 放大或缩小宠物一档。锚点不变，因此宠物站的位置不会跳；
+   * 窗口按新尺寸重新对齐，并把倍率写进配置。
+   */
+  async stepScale(direction: 'up' | 'down'): Promise<number> {
+    const config = this.requireConfig();
+    const index = nearestScaleIndex(this.scale);
+    const next = direction === 'up' ? index + 1 : index - 1;
+    const clamped = Math.min(SCALE_STEPS.length - 1, Math.max(0, next));
+    const scale = SCALE_STEPS[clamped] ?? this.scale;
+    if (scale === this.scale) {
+      return this.scale;
+    }
+    this.scale = scale;
+    config.scale = scale;
+    const skin = this.requireSkin();
+    this.deps.renderer.setSkinScale?.(scale);
+    this.lastDrawnSignature = null;
+    await this.deps.window.setSize(
+      Math.round(skin.canvas.width * scale),
+      Math.round(skin.canvas.height * scale),
+    );
+    await this.deps.window.setTopLeft(
+      anchorToWindowTopLeft(config.anchorPosition, skin.anchor, scale),
+    );
+    this.draw();
+    await this.save();
+    return scale;
+  }
+
+  /** 当前显示倍率，供菜单与调试读取。 */
+  currentScale(): number {
+    return this.scale;
   }
 
   /** 翻转置顶状态并写入配置。 */
@@ -291,7 +351,7 @@ export class PetController {
     }
     await this.installSkin(loaded.skin, loaded.baseUrl);
     await this.deps.window.setTopLeft(
-      anchorToWindowTopLeft(config.anchorPosition, loaded.skin.anchor),
+      anchorToWindowTopLeft(config.anchorPosition, loaded.skin.anchor, this.scale),
     );
     this.draw();
     return true;
@@ -309,7 +369,7 @@ export class PetController {
     await this.installSkin(outcome.skin, outcome.baseUrl);
     // 新皮肤的锚点与画布尺寸可能不同，按新锚点重新对齐窗口左上角
     await this.deps.window.setTopLeft(
-      anchorToWindowTopLeft(this.requireConfig().anchorPosition, outcome.skin.anchor),
+      anchorToWindowTopLeft(this.requireConfig().anchorPosition, outcome.skin.anchor, this.scale),
     );
     this.requireConfig().activeSkinId = id;
     await this.save();
@@ -375,7 +435,11 @@ export class PetController {
       clampPosition: (point) => clampToWorkArea(point, this.workAreas),
     });
     await this.deps.renderer.prepareSkin(skin, baseUrl);
-    await this.deps.window.setSize(skin.canvas.width, skin.canvas.height);
+    this.deps.renderer.setSkinScale?.(this.scale);
+    await this.deps.window.setSize(
+      Math.round(skin.canvas.width * this.scale),
+      Math.round(skin.canvas.height * this.scale),
+    );
     // 新皮肤的帧图片是全新对象，即使文件路径与旧皮肤相同也要重画
     this.lastDrawnSignature = null;
   }
@@ -418,7 +482,9 @@ export class PetController {
     const config = this.requireConfig();
     const skin = this.requireSkin();
     config.anchorPosition = this.anchorPosition();
-    await this.deps.window.setTopLeft(anchorToWindowTopLeft(config.anchorPosition, skin.anchor));
+    await this.deps.window.setTopLeft(
+      anchorToWindowTopLeft(config.anchorPosition, skin.anchor, this.scale),
+    );
     await this.save();
   }
 
@@ -429,6 +495,7 @@ export class PetController {
       alwaysOnTop: config.alwaysOnTop,
       autoStart: config.autoStart,
       idleMotion: config.idleMotion,
+      scale: config.scale,
       anchorPosition: { ...config.anchorPosition },
     });
   }
@@ -453,4 +520,19 @@ export class PetController {
     }
     return this.machine;
   }
+}
+
+/** 找到当前倍率在档位表里最接近的一档，用于决定放大或缩小的起点。 */
+function nearestScaleIndex(scale: number): number {
+  let best = 0;
+  let bestDistance = Number.POSITIVE_INFINITY;
+  for (let index = 0; index < SCALE_STEPS.length; index += 1) {
+    const step = SCALE_STEPS[index] ?? scale;
+    const distance = Math.abs(step - scale);
+    if (distance < bestDistance) {
+      bestDistance = distance;
+      best = index;
+    }
+  }
+  return best;
 }

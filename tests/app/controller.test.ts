@@ -24,6 +24,7 @@ const START_CONFIG: AppConfig = {
   alwaysOnTop: false,
   autoStart: false,
   idleMotion: true,
+  scale: 1,
   anchorPosition: { x: 500, y: 600 },
 };
 
@@ -43,6 +44,7 @@ class FakeRenderer implements Renderer {
   prepared: { skinId: string; baseUrl: string } | null = null;
   frames: RenderFrame[] = [];
   scales: number[] = [];
+  skinScales: number[] = [];
   opaque: (frameFile: string, point: Point) => boolean = () => true;
 
   prepareSkin(skin: Skin, baseUrl: string): void {
@@ -51,6 +53,10 @@ class FakeRenderer implements Renderer {
 
   setScale(scale: number): void {
     this.scales.push(scale);
+  }
+
+  setSkinScale(scale: number): void {
+    this.skinScales.push(scale);
   }
 
   isOpaqueAt(frameFile: string, point: Point): boolean {
@@ -452,6 +458,69 @@ describe('应用层控制器', () => {
     const h = await harness();
     (h.renderer as { isOpaqueAt?: unknown }).isOpaqueAt = undefined;
     expect(h.controller.isPointOnPet({ x: 0, y: 0 })).toBe(true);
+  });
+
+  it('命中判定按当前位姿反算回帧坐标，抵消呼吸的纵向缩放', async () => {
+    const h = await harness();
+    const calls: Point[] = [];
+    h.renderer.opaque = (_frameFile, point) => {
+      calls.push(point);
+      return true;
+    };
+    h.controller.tick(500);
+    const motion = h.renderer.lastFrame()?.motion;
+    expect(motion?.scaleY).not.toBe(1);
+    h.controller.isPointOnPet({ x: 488, y: 566 });
+    // 画布坐标是 (20, 30)，反算后 y 会按底边基准拉回帧坐标（夹具画布高 64）
+    const expectedY = 64 + (30 - 64 - (motion?.offsetY ?? 0)) / (motion?.scaleY ?? 1);
+    expect(calls[0]?.x).toBeCloseTo(20 - (motion?.offsetX ?? 0), 6);
+    expect(calls[0]?.y).toBeCloseTo(expectedY, 6);
+    expect(calls[0]?.y).not.toBeCloseTo(30, 1);
+  });
+
+  it('命中判定按显示倍率把屏幕坐标换算成画布坐标', async () => {
+    const h = await harness({ config: { ...START_CONFIG, scale: 2 } });
+    await h.controller.toggleIdleMotion();
+    const calls: Point[] = [];
+    h.renderer.opaque = (_frameFile, point) => {
+      calls.push(point);
+      return true;
+    };
+    // 倍率 2 时锚点偏移翻倍，窗口左上角是 (436, 472)
+    expect(h.window.positions.at(-1)).toEqual({ x: 436, y: 472 });
+    h.controller.isPointOnPet({ x: 476, y: 532 });
+    expect(calls[0]).toEqual({ x: 20, y: 30 });
+  });
+
+  it('启动时按配置的显示倍率设置窗口尺寸与位置', async () => {
+    const h = await harness({ config: { ...START_CONFIG, scale: 1.25 } });
+    expect(h.window.sizes).toEqual([{ width: 80, height: 80 }]);
+    expect(h.window.positions).toEqual([{ x: 460, y: 520 }]);
+    expect(h.renderer.skinScales).toEqual([1.25]);
+  });
+
+  it('放大宠物一档：窗口与画布同步放大，锚点位置不动', async () => {
+    const h = await harness();
+    const scale = await h.controller.stepScale('up');
+    expect(scale).toBe(1.25);
+    expect(h.controller.currentScale()).toBe(1.25);
+    expect(h.window.sizes.at(-1)).toEqual({ width: 80, height: 80 });
+    expect(h.window.positions.at(-1)).toEqual({ x: 460, y: 520 });
+    expect(h.renderer.skinScales.at(-1)).toBe(1.25);
+    expect(h.storage.saved.at(-1)?.scale).toBe(1.25);
+    // 锚点没有变，宠物站的仍然是原来那个点
+    expect(h.controller.anchorPosition()).toEqual({ x: 500, y: 600 });
+  });
+
+  it('倍率到上限或下限时不再变化', async () => {
+    const h = await harness();
+    expect(await h.controller.stepScale('down')).toBe(0.75);
+    expect(await h.controller.stepScale('down')).toBe(0.75);
+    await h.controller.stepScale('up');
+    await h.controller.stepScale('up');
+    await h.controller.stepScale('up');
+    expect(await h.controller.stepScale('up')).toBe(2);
+    expect(await h.controller.stepScale('up')).toBe(2);
   });
 
   it('退出时先保存配置再关闭窗口', async () => {

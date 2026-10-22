@@ -6,7 +6,7 @@
  * 然后把结果交给领域层的校验器，因此校验规则只有一份实现。
  */
 
-import type { SkinLoadOutcome, SkinRepository, SkinSummary } from '../app/controller';
+import type { SkinDetails, SkinLoadOutcome, SkinRepository, SkinSummary } from '../app/controller';
 import { loadSkin } from '../core/skin/validate';
 import { pollForChanges } from './poller';
 
@@ -113,6 +113,59 @@ export class FetchSkinRepository implements SkinRepository {
     const suffix = version === undefined ? '' : `?v=${encodeURIComponent(version)}`;
     return `${manifest.base}${id}/${file}${suffix}`;
   }
+
+  /** 皮肤的尺寸与帧数，供皮肤管理窗口显示在卡片上。清单读不到时返回 null。 */
+  async describe(id: string): Promise<SkinDetails | null> {
+    const manifest = await this.backend.fetchText(`${id}/skin.json`);
+    if (manifest === null) {
+      return null;
+    }
+    return describeManifest(manifest.text);
+  }
+}
+
+/**
+ * 从清单文本里取出画布尺寸与两个动画的帧数。
+ * 只用于界面展示，对非法输入保持沉默：真正的格式错误由领域层校验器报告。
+ */
+function describeManifest(manifestText: string): SkinDetails | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(manifestText);
+  } catch {
+    return null;
+  }
+  if (typeof parsed !== 'object' || parsed === null) {
+    return null;
+  }
+  const record = parsed as Record<string, unknown>;
+  const canvas = record['canvas'];
+  if (typeof canvas !== 'object' || canvas === null) {
+    return null;
+  }
+  const size = canvas as Record<string, unknown>;
+  const width = size['width'];
+  const height = size['height'];
+  if (typeof width !== 'number' || typeof height !== 'number') {
+    return null;
+  }
+  const animations = record['animations'];
+  const frames = (name: string): number => {
+    if (typeof animations !== 'object' || animations === null) {
+      return 0;
+    }
+    const animation = (animations as Record<string, unknown>)[name];
+    if (typeof animation !== 'object' || animation === null) {
+      return 0;
+    }
+    const list = (animation as Record<string, unknown>)['frames'];
+    return Array.isArray(list) ? list.length : 0;
+  };
+  return {
+    canvas: { width, height },
+    idleFrames: frames('idle'),
+    dragFrames: frames('drag'),
+  };
 }
 
 /**
