@@ -167,7 +167,10 @@ mod tests {
 
     #[test]
     fn ascii_path_passes_through() {
-        assert_eq!(percent_decode("default/images/idle_0.png"), "default/images/idle_0.png");
+        assert_eq!(
+            percent_decode("default/images/idle_0.png"),
+            "default/images/idle_0.png"
+        );
     }
 
     #[test]

@@ -1,5 +1,5 @@
-use crate::store;
 use crate::log;
+use crate::store;
 
 use tauri::Manager;
 
@@ -60,7 +60,8 @@ pub fn set_tray_tooltip(app: tauri::AppHandle, text: String) -> Result<(), Strin
     let tray = app
         .tray_by_id("pet-tray")
         .ok_or_else(|| String::from("托盘图标尚未创建"))?;
-    tray.set_tooltip(Some(text)).map_err(|error| error.to_string())
+    tray.set_tooltip(Some(text))
+        .map_err(|error| error.to_string())
 }
 
 /// 当前进程的常驻内存字节数。平台不支持时返回 None。

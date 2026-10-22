@@ -6,7 +6,10 @@ use tauri::Manager;
 
 /// 配置文件路径：操作系统提供的应用配置目录下的 config.json。
 fn config_path(app: &tauri::AppHandle) -> Result<PathBuf, String> {
-    let dir = app.path().app_config_dir().map_err(|error| error.to_string())?;
+    let dir = app
+        .path()
+        .app_config_dir()
+        .map_err(|error| error.to_string())?;
     fs::create_dir_all(&dir).map_err(|error| error.to_string())?;
     Ok(dir.join("config.json"))
 }

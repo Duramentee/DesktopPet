@@ -14,7 +14,10 @@ const MAX_BYTES: u64 = 512 * 1024;
 
 /// 日志目录，不存在时创建。
 pub fn log_dir(app: &tauri::AppHandle) -> Result<PathBuf, String> {
-    let dir = app.path().app_log_dir().map_err(|error| error.to_string())?;
+    let dir = app
+        .path()
+        .app_log_dir()
+        .map_err(|error| error.to_string())?;
     fs::create_dir_all(&dir).map_err(|error| error.to_string())?;
     Ok(dir)
 }
@@ -49,5 +52,6 @@ pub fn write(app: &tauri::AppHandle, level: &str, message: &str) -> Result<(), S
         .append(true)
         .open(&path)
         .map_err(|error| error.to_string())?;
-    file.write_all(line.as_bytes()).map_err(|error| error.to_string())
+    file.write_all(line.as_bytes())
+        .map_err(|error| error.to_string())
 }

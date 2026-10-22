@@ -8,7 +8,7 @@
 pub fn prepare_pet_window(window: &tauri::WebviewWindow) -> tauri::Result<()> {
     use windows_sys::Win32::UI::WindowsAndMessaging::{
         GetWindowLongPtrW, SetWindowLongPtrW, SetWindowPos, GWL_STYLE, SWP_FRAMECHANGED,
-        SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOZORDER, SWP_NOSIZE, WS_CAPTION, WS_MAXIMIZEBOX,
+        SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, WS_CAPTION, WS_MAXIMIZEBOX,
         WS_MINIMIZEBOX, WS_SYSMENU,
     };
 
