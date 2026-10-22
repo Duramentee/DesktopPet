@@ -97,6 +97,23 @@ WSL2 的图形输出由 WSLg 提供，它通过远程桌面协议把 Linux 窗�
 
 清单必须提供 `animations.idle` 与 `animations.drag` 两个动画，每个动画必须声明 `fps`、`loop` 与 `frames`，每个帧必须声明相对皮肤目录的 `file` 路径。可选字段有三项：清单中的 `hitbox` 用于缩小可点击区域，帧上的 `durationMs` 用于覆盖由帧率推算出的单帧时长，清单中的 `displayName` 用于在菜单中展示可读名称。
 
+### 从视频生成皮肤
+
+如果手上有白底的待机动画视频，可以直接用它生成一套皮肤，不必手工切图：
+
+```powershell
+python scripts/build-skin-from-video.py `
+  --video sources/亚贞/waiting.mp4 `
+  --out assets/skins/亚贞 `
+  --id 亚贞 --name 亚贞 --canvas 96 --fps 12
+```
+
+脚本会用 ffmpeg 抽帧，逐帧抠掉与画面边缘连通的白色背景（被描边包围的白色衣料不会被误删），只保留最大的一块前景以顺带去掉角落水印，再用所有帧的并集包围盒统一缩放与定位，最后写出 `skin.json`、`images` 下的帧，并把皮肤登记进 `index.json`。
+
+依赖：`ffmpeg` 在 PATH 中，Python 侧需要 `pillow`、`numpy`、`scipy`。帧会存成 255 色调色板 PNG，体积约为真彩色版本的三成。
+
+原始素材（视频、大尺寸原图）请放在仓库根的 `sources/` 目录，不要放进 `assets/`：`assets` 会被整体复制进安装包，`npm test` 里有一条用例专门拦截混进 `assets` 的视频与超过五百一十二千字节的图片。
+
 ## 已知限制
 
 | 平台 | 限制 | 原因与处理方式 |

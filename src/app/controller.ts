@@ -76,6 +76,8 @@ export interface ControllerDeps {
   workAreas: () => Promise<Rect[]> | Rect[];
   /** 配置中的皮肤加载失败时使用的备用皮肤标识。 */
   fallbackSkinId?: string;
+  /** 皮肤加载失败时的回调，用于把失败原因写进日志而不是静默回退。 */
+  onSkinFailure?: (message: string) => void;
 }
 
 export class PetController {
@@ -352,6 +354,8 @@ export class PetController {
     if (primary.ok) {
       return { id, skin: primary.skin, baseUrl: primary.baseUrl };
     }
+    // 回退是静默的，如果不在这里报一声，皮肤坏掉时只会看到宠物换了个样子
+    this.deps.onSkinFailure?.(`皮肤 ${id} 加载失败（${primary.code}）：${primary.reason}`);
     if (id === this.fallbackSkinId) {
       return null;
     }

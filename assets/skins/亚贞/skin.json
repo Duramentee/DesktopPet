@@ -1,0 +1,216 @@
+{
+  "id": "亚贞",
+  "displayName": "亚贞",
+  "formatVersion": 1,
+  "canvas": {
+    "width": 96,
+    "height": 96
+  },
+  "anchor": {
+    "x": 48,
+    "y": 96
+  },
+  "animations": {
+    "idle": {
+      "fps": 12,
+      "loop": true,
+      "frames": [
+        {
+          "file": "images/idle_0.png"
+        },
+        {
+          "file": "images/idle_1.png"
+        },
+        {
+          "file": "images/idle_2.png"
+        },
+        {
+          "file": "images/idle_3.png"
+        },
+        {
+          "file": "images/idle_4.png"
+        },
+        {
+          "file": "images/idle_5.png"
+        },
+        {
+          "file": "images/idle_6.png"
+        },
+        {
+          "file": "images/idle_7.png"
+        },
+        {
+          "file": "images/idle_8.png"
+        },
+        {
+          "file": "images/idle_9.png"
+        },
+        {
+          "file": "images/idle_10.png"
+        },
+        {
+          "file": "images/idle_11.png"
+        },
+        {
+          "file": "images/idle_12.png"
+        },
+        {
+          "file": "images/idle_13.png"
+        },
+        {
+          "file": "images/idle_14.png"
+        },
+        {
+          "file": "images/idle_15.png"
+        },
+        {
+          "file": "images/idle_16.png"
+        },
+        {
+          "file": "images/idle_17.png"
+        },
+        {
+          "file": "images/idle_18.png"
+        },
+        {
+          "file": "images/idle_19.png"
+        },
+        {
+          "file": "images/idle_20.png"
+        },
+        {
+          "file": "images/idle_21.png"
+        },
+        {
+          "file": "images/idle_22.png"
+        },
+        {
+          "file": "images/idle_23.png"
+        },
+        {
+          "file": "images/idle_24.png"
+        },
+        {
+          "file": "images/idle_25.png"
+        },
+        {
+          "file": "images/idle_26.png"
+        },
+        {
+          "file": "images/idle_27.png"
+        },
+        {
+          "file": "images/idle_28.png"
+        },
+        {
+          "file": "images/idle_29.png"
+        },
+        {
+          "file": "images/idle_30.png"
+        },
+        {
+          "file": "images/idle_31.png"
+        },
+        {
+          "file": "images/idle_32.png"
+        },
+        {
+          "file": "images/idle_33.png"
+        },
+        {
+          "file": "images/idle_34.png"
+        },
+        {
+          "file": "images/idle_35.png"
+        },
+        {
+          "file": "images/idle_36.png"
+        },
+        {
+          "file": "images/idle_37.png"
+        },
+        {
+          "file": "images/idle_38.png"
+        },
+        {
+          "file": "images/idle_39.png"
+        },
+        {
+          "file": "images/idle_40.png"
+        },
+        {
+          "file": "images/idle_41.png"
+        },
+        {
+          "file": "images/idle_42.png"
+        },
+        {
+          "file": "images/idle_43.png"
+        },
+        {
+          "file": "images/idle_44.png"
+        },
+        {
+          "file": "images/idle_45.png"
+        },
+        {
+          "file": "images/idle_46.png"
+        },
+        {
+          "file": "images/idle_47.png"
+        },
+        {
+          "file": "images/idle_48.png"
+        },
+        {
+          "file": "images/idle_49.png"
+        },
+        {
+          "file": "images/idle_50.png"
+        },
+        {
+          "file": "images/idle_51.png"
+        },
+        {
+          "file": "images/idle_52.png"
+        },
+        {
+          "file": "images/idle_53.png"
+        },
+        {
+          "file": "images/idle_54.png"
+        },
+        {
+          "file": "images/idle_55.png"
+        },
+        {
+          "file": "images/idle_56.png"
+        },
+        {
+          "file": "images/idle_57.png"
+        },
+        {
+          "file": "images/idle_58.png"
+        },
+        {
+          "file": "images/idle_59.png"
+        },
+        {
+          "file": "images/idle_60.png"
+        }
+      ]
+    },
+    "drag": {
+      "fps": 12,
+      "loop": true,
+      "frames": [
+        {
+          "file": "images/drag_0.png"
+        },
+        {
+          "file": "images/drag_1.png"
+        }
+      ]
+    }
+  }
+}

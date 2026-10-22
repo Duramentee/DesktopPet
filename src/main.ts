@@ -58,6 +58,7 @@ async function startPet(logger: Logger): Promise<void> {
     idleMotion: new IdleMotion(),
     workAreas: listWorkAreas,
     fallbackSkinId: 'default',
+    onSkinFailure: (message) => logger.warn(message),
   });
 
   await controller.start();

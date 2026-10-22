@@ -79,9 +79,11 @@ fn accumulate(dir: &Path, newest: &mut u64, total: &mut u64) {
 }
 
 /// 处理 `skin://` 请求。相对路径形如 `default/images/idle_0.png`。
+/// 请求行里的路径是百分号编码的（中文皮肤目录会变成 `%E4%BA%9A%E8%B4%9E`），
+/// 必须先解码再交给文件系统，否则非 ASCII 目录名一律读不到。
 pub fn handle_protocol(app: &tauri::AppHandle, request: Request<Vec<u8>>) -> Response<Vec<u8>> {
-    let relative = request.uri().path().trim_start_matches('/');
-    match read_user_file(app, relative) {
+    let relative = percent_decode(request.uri().path().trim_start_matches('/'));
+    match read_user_file(app, &relative) {
         Some((bytes, content_type)) => Response::builder()
             .status(StatusCode::OK)
             .header(header::CONTENT_TYPE, content_type)
@@ -123,6 +125,27 @@ fn read_user_file(app: &tauri::AppHandle, relative: &str) -> Option<(Vec<u8>, &'
     Some((bytes, content_type_of(&canonical)))
 }
 
+/// 解码百分号编码的路径。非法或截断的转义原样保留，交给后续的路径校验去拒绝。
+fn percent_decode(raw: &str) -> String {
+    let bytes = raw.as_bytes();
+    let mut out: Vec<u8> = Vec::with_capacity(bytes.len());
+    let mut index = 0;
+    while index < bytes.len() {
+        if bytes[index] == b'%' && index + 2 < bytes.len() {
+            let high = (bytes[index + 1] as char).to_digit(16);
+            let low = (bytes[index + 2] as char).to_digit(16);
+            if let (Some(high), Some(low)) = (high, low) {
+                out.push((high * 16 + low) as u8);
+                index += 3;
+                continue;
+            }
+        }
+        out.push(bytes[index]);
+        index += 1;
+    }
+    String::from_utf8_lossy(&out).into_owned()
+}
+
 fn content_type_of(path: &Path) -> &'static str {
     let extension = path
         .extension()
@@ -135,5 +158,41 @@ fn content_type_of(path: &Path) -> &'static str {
         Some("gif") => "image/gif",
         Some("jpg") | Some("jpeg") => "image/jpeg",
         _ => "application/octet-stream",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::percent_decode;
+
+    #[test]
+    fn ascii_path_passes_through() {
+        assert_eq!(percent_decode("default/images/idle_0.png"), "default/images/idle_0.png");
+    }
+
+    #[test]
+    fn chinese_directory_is_decoded() {
+        assert_eq!(
+            percent_decode("%E4%BA%9A%E8%B4%9E/images/idle_0.png"),
+            "亚贞/images/idle_0.png"
+        );
+    }
+
+    #[test]
+    fn spaces_and_plus_are_handled() {
+        // 路径里不会出现表单编码的加号，加号按字面保留
+        assert_eq!(percent_decode("a%20b+c.png"), "a b+c.png");
+    }
+
+    #[test]
+    fn malformed_escape_is_kept_verbatim() {
+        assert_eq!(percent_decode("%ZZ/%2"), "%ZZ/%2");
+        assert_eq!(percent_decode("tail%"), "tail%");
+    }
+
+    #[test]
+    fn encoded_separators_are_decoded_before_validation() {
+        // 解码后会出现 .. 与分隔符，由调用方的逐段校验拒绝，这里只确认解码结果
+        assert_eq!(percent_decode("..%2F..%2Fsecret"), "../../secret");
     }
 }

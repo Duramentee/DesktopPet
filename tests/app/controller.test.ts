@@ -164,6 +164,7 @@ async function harness(options: {
   outcomes?: Record<string, SkinLoadOutcome>;
   workAreas?: Rect[];
   autoStartEnabled?: boolean;
+  onSkinFailure?: (message: string) => void;
 } = {}): Promise<Harness> {
   const events: string[] = [];
   const renderer = new FakeRenderer();
@@ -186,6 +187,7 @@ async function harness(options: {
     idleMotion,
     workAreas: () => options.workAreas ?? [PRIMARY],
     fallbackSkinId: 'default',
+    onSkinFailure: options.onSkinFailure,
   });
   await controller.start();
   return { controller, renderer, window: windowBackend, storage, skins, autostart, events };
@@ -212,6 +214,27 @@ describe('应用层控制器', () => {
     });
     expect(h.renderer.prepared?.skinId).toBe('default');
     expect(h.storage.saved.at(-1)?.activeSkinId).toBe('default');
+  });
+
+  it('回退到备用皮肤时把失败原因报给调用方', async () => {
+    const messages: string[] = [];
+    await harness({
+      config: { ...START_CONFIG, activeSkinId: 'missing' },
+      outcomes: {
+        default: okOutcome(),
+        missing: { ok: false, code: 'S1', reason: '皮肤 missing 的清单文件无法读取' },
+      },
+      onSkinFailure: (message) => messages.push(message),
+    });
+    expect(messages).toHaveLength(1);
+    expect(messages[0]).toContain('S1');
+    expect(messages[0]).toContain('missing');
+  });
+
+  it('皮肤正常加载时不报失败', async () => {
+    const messages: string[] = [];
+    await harness({ onSkinFailure: (message) => messages.push(message) });
+    expect(messages).toHaveLength(0);
   });
 
   it('所有皮肤都不可用时拒绝启动', async () => {

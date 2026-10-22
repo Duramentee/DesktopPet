@@ -63,4 +63,33 @@ describe('仓库内的真实皮肤包', () => {
       expect(entries).toEqual(['images', 'skin.json']);
     }
   });
+
+  it('内置索引为每一份皮肤目录都提供了条目，且没有多余条目', () => {
+    const index = JSON.parse(readFileSync(join(SKIN_ROOT, 'index.json'), 'utf8')) as {
+      skins: { id: string; displayName: string }[];
+    };
+    const listed = index.skins.map((item) => item.id).sort();
+    expect(listed).toEqual(skinIds().sort());
+    for (const item of index.skins) {
+      expect(item.displayName.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('assets 目录里不放大体积素材，避免被打进安装包', () => {
+    // assets 会被整套复制进产物，原始视频与素材图必须留在仓库根的 sources 目录
+    const walk = (dir: string): string[] =>
+      readdirSync(dir).flatMap((name) => {
+        const full = join(dir, name);
+        return statSync(full).isDirectory() ? walk(full) : [full];
+      });
+    const assets = join(process.cwd(), 'assets');
+    const offenders = walk(assets).filter((file) => {
+      const lower = file.toLowerCase();
+      if (/\.(mp4|mov|mkv|webm|avi)$/.test(lower)) {
+        return true;
+      }
+      return statSync(file).size > 512 * 1024;
+    });
+    expect(offenders).toEqual([]);
+  });
 });
