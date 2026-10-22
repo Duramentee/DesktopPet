@@ -117,6 +117,38 @@ def save_png(image: Image.Image, path: Path) -> None:
     image.quantize(colors=255, method=Image.FASTOCTREE).save(path, optimize=True)
 
 
+def pick_drag_sequence(frames: list[Image.Image], count: int) -> list[Image.Image]:
+    """
+    挑出一段用于拖拽动画的连续帧，并做来回播放。
+
+    早期版本直接取首尾两帧，两帧相差极大，十二帧每秒交替时看起来像在抽搐。
+    这里改为在连续帧里挑一段步长均匀、又不至于静止的窗口，再按“正放再倒放”排列，
+    使循环的首尾都只差一步，播放时不会出现跳变。
+    """
+    count = max(2, min(count, len(frames) - 1))
+    arrays = [np.asarray(frame, dtype=np.int16) for frame in frames]
+    steps = [float(np.abs(arrays[i + 1] - arrays[i]).mean()) for i in range(len(arrays) - 1)]
+
+    totals = []
+    for start in range(0, len(steps) - count + 2):
+        window = steps[start : start + count - 1]
+        if len(window) < count - 1:
+            break
+        totals.append((sum(window), max(window), start))
+    if not totals:
+        return frames[:count]
+
+    # 先剔除几乎静止的窗口（运动量不足最剧烈窗口的三成），再在剩下的里挑步长最平稳的，
+    # 这样拖拽时既不显得冻结，也不会像早期那样两步一跳
+    floor = max(total for total, _, _ in totals) * 0.3
+    pool = [item for item in totals if item[0] >= floor] or totals
+    _, _, start = min(pool, key=lambda item: item[1])
+
+    forwards = frames[start : start + count]
+    backwards = forwards[-2:0:-1]
+    return forwards + backwards
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--video", required=True, type=Path)
@@ -126,6 +158,7 @@ def main() -> None:
     parser.add_argument("--canvas", type=int, default=96)
     parser.add_argument("--fps", type=int, default=12)
     parser.add_argument("--margin", type=int, default=2)
+    parser.add_argument("--drag-count", type=int, default=5, help="拖拽动画取用的连续帧数，会来回播放")
     parser.add_argument("--fill", type=float, default=0.98, help="主体占画布的比例上限")
     args = parser.parse_args()
 
@@ -155,11 +188,10 @@ def main() -> None:
         save_png(image, images_dir / f"idle_{index}.png")
 
     # 拖拽动画取视频里的头两段动作，比复用静止画面更像被拎起来晃动
-    drag_count = 2
-    step = max(1, len(composed) // drag_count)
-    for index in range(drag_count):
-        source = composed[min(len(composed) - 1, index * step)]
+    drag_sequence = pick_drag_sequence(composed, args.drag_count)
+    for index, source in enumerate(drag_sequence):
         save_png(source, images_dir / f"drag_{index}.png")
+    drag_count = len(drag_sequence)
 
     manifest = {
         "id": args.id,
