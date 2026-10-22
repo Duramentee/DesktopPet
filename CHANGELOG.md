@@ -67,7 +67,9 @@ ed09543a5e9460e36c48484250d6709c6fe1c964f849e00df15bfcf7e9538a22  desktop-pet_0.
 
 ### 变更
 
+- 新增 GitHub Actions 持续集成：前端在 `ubuntu-24.04` 上跑类型检查、单元测试与构建；Rust 在 Linux 与 Windows 上各跑 `cargo fmt --check`、`cargo clippy --all-targets -- -D warnings`、`cargo test --locked`。
 - 原始素材改放仓库根的 `sources/<皮肤标识>/`；`assets/` 只保留清单与帧图片。新增用例拦截混进 `assets` 的视频与超过五百一十二千字节的图片，避免安装包被素材撑大。
+- Rust 代码统一按 rustfmt 格式化，clippy 零告警。
 
 ### 待办
 
